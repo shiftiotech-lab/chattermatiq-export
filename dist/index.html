@@ -242,7 +242,7 @@
         setProgress(55,'Fetching real comments…');
         const data = await res.json();
         if(!res.ok){ throw new Error(data.error||'Failed to analyze'); }
-        setProgress(90,'Analyzing sentiment…');
+        setProgress(90,'Running DeepSeek AI analysis…');
         await new Promise(r=>setTimeout(r, 500)); // brief, honest settle
         setProgress(100,'Done.');
         render(data);
@@ -272,18 +272,36 @@
         `<span>${comments.length} comments shown · <a href="${esc(meta.url)}" target="_blank" style="color:var(--electric)">open on YouTube ↗</a></span>`;
 
       const s = computeInsights(comments);
-      $('insights').innerHTML = `
+      // Prefer real DeepSeek analysis when present, else keyword sentiment.
+      const ai = data.ai;
+      let insightHtml;
+      if (ai && ai.sentiment) {
+        insightHtml = `
         <div class="insight">
-          <h3>🧠 AI sentiment on this video</h3>
+          <h3>🧠 AI audience analysis <span style="font-weight:400;font-size:12px;color:#64748b">· ${esc(ai.model||'')} · ${ai.sampleSize||''} comments</span></h3>
+          <div class="chips" style="margin-bottom:14px">
+            <span class="chip">👍 Positive ${ai.sentiment.positive}%</span>
+            <span class="chip">😐 Neutral ${ai.sentiment.neutral}%</span>
+            <span class="chip">👎 Negative ${ai.sentiment.negative}%</span>
+          </div>
+          ${ai.themes?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Themes:</b></p><div class="chips" style="margin-bottom:12px">${ai.themes.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`:''}
+          ${ai.objections?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Objections / concerns:</b></p><ul>${ai.objections.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+          ${ai.topRequests?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">What viewers want:</b></p><ul>${ai.topRequests.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+          ${ai.recommendations?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Recommended next steps:</b></p><ul>${ai.recommendations.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+        </div>`;
+      } else {
+        insightHtml = `
+        <div class="insight">
+          <h3>🧠 Sentiment on this video</h3>
           <div class="chips" style="margin-bottom:14px">
             <span class="chip">👍 Positive ${s.posPct}%</span>
             <span class="chip">😐 Neutral ${s.neuPct}%</span>
             <span class="chip">👎 Negative ${s.negPct}%</span>
           </div>
-          <ul>
-            <li>Sampled <b>${s.count}</b> comment(s) — export the full set for a complete read.</li>
-          </ul>
+          <ul><li>Sampled <b>${s.count}</b> comment(s) — export the full set for a complete read.</li></ul>
         </div>`;
+      }
+      $('insights').innerHTML = insightHtml;
 
       let rows='';
       for(const c of comments){

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import fs from 'node:fs';
 import { extractVideoId, fetchComments, fetchVideoMeta } from './lib/youtube.js';
 import { flattenComments, toCsv, HEADERS } from './lib/csv.js';
+import { analyzeWithDeepSeek } from './lib/deepseek.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = Fastify({ logger: true });
@@ -21,6 +22,9 @@ if (fs.existsSync(envPath)) {
 
 const API_KEY = process.env.YOUTUBE_API_KEY || '';
 const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || '127.0.0.1';
+const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek/deepseek-chat';
 
 // --- Static frontend (built Vite app, if present) ---
 const DIST = join(__dirname, '..', 'dist');
@@ -40,6 +44,7 @@ fs.existsSync(DIST) &&
 app.get('/api/health', async () => ({
   status: 'ok',
   hasApiKey: Boolean(API_KEY),
+  ai: DEEPSEEK_KEY ? { enabled: true, model: DEEPSEEK_MODEL } : { enabled: false, model: DEEPSEEK_MODEL },
   version: '0.1.0',
 }));
 
@@ -60,7 +65,17 @@ app.post('/api/preview', async (req, reply) => {
       fetchVideoMeta({ videoId, apiKey: API_KEY }),
       fetchComments({ videoId, apiKey: API_KEY, maxResults: 15 }),
     ]);
-    return { video: meta, comments: comments.slice(0, 15), truncated: comments.length >= 15 };
+    // DeepSeek insight over the sample (graceful: null if no key / failure).
+    const ai = DEEPSEEK_KEY
+      ? await analyzeWithDeepSeek({
+          comments,
+          apiKey: DEEPSEEK_KEY,
+          model: DEEPSEEK_MODEL,
+          videoTitle: meta.title,
+          maxComments: 15,
+        })
+      : null;
+    return { video: meta, comments: comments.slice(0, 15), truncated: comments.length >= 15, ai };
   } catch (err) {
     app.log.error(err);
     return reply.code(502).send({ error: err.message });
@@ -100,7 +115,7 @@ app.post('/api/export', async (req, reply) => {
 
 const BOM = '\uFEFF'; // UTF-8 BOM so Excel opens UTF-8 CSV correctly
 
-app.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
+app.listen({ port: PORT, host: HOST }, (err) => {
   if (err) {
     app.log.error(err);
     process.exit(1);
