@@ -131,8 +131,8 @@ export async function fetchComments({ videoId, apiKey, maxResults = 200, perPage
     videoId,
     comments,
     truncated,
-    hasMore: Boolean(nextToken),
-    nextPageToken: nextToken || null,
+    hasMore: Boolean(nextPageToken),
+    nextPageToken: nextPageToken || null,
     quotaUsed,
   };
 }

@@ -271,8 +271,7 @@
         (meta.channel?`<span>Channel: <b>${esc(meta.channel)}</b></span>`:'')+
         `<span>${comments.length} comments shown · <a href="${esc(meta.url)}" target="_blank" style="color:var(--electric)">open on YouTube ↗</a></span>`;
 
-      const flat = comments.map(c=>c.text||'').filter(Boolean);
-      const s = computeInsights(flat);
+      const s = computeInsights(comments);
       $('insights').innerHTML = `
         <div class="insight">
           <h3>🧠 AI sentiment on this video</h3>
