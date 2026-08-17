@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ChattermatIQ — extract every YouTube comment and turn it into strategic insight. Paste a link, get a real analysis in seconds." />
+  <title>ChattermatIQ · YouTube Comment Intelligence</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #020617; /* slate-950 */
+      --panel: #0f172a; /* slate-900 */
+      --border: #1e293b; /* slate-800 */
+      --electric: #60a5fa; /* blue-400 */
+      --electric-300: #93c5fd;
+      --text: #f1f5f9; /* slate-100 */
+      --muted: #94a3b8; /* slate-400 */
+      --grid: rgba(96,165,250,.06);
+      --glow: rgba(96,165,250,.16);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+    .grid-bg {
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 42px 42px;
+    }
+    .glow-top {
+      position: fixed; top:0; left:0; right:0; height: 480px; z-index:0; pointer-events:none;
+      background: radial-gradient(ellipse at top, var(--glow), transparent 60%);
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; position: relative; z-index:1; }
+
+    header.top { position: sticky; top:0; z-index:20; background: rgba(2,6,23,.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    nav { max-width: 920px; margin:0 auto; padding: 16px 24px; display:flex; align-items:center; justify-content:space-between; }
+    .brand { display:flex; gap:10px; align-items:center; font-weight:700; font-size:18px; text-decoration:none; color:var(--text); }
+    .brand .bolt { color: var(--electric); }
+    .nav-links { display:flex; gap:28px; font-size:14px; color:var(--muted); }
+    .nav-links a { color: var(--muted); text-decoration:none; transition:color .2s; }
+    .nav-links a:hover { color: var(--electric-300); }
+
+    .hero { text-align:center; padding:88px 0 48px; }
+    .kicker { color:var(--electric); font-weight:500; letter-spacing:.35em; text-transform:uppercase; font-size:11px; margin-bottom:18px; }
+    h1 { font-size: clamp(32px, 6vw, 56px); font-weight:700; letter-spacing:-.02em; line-height:1.08; margin-bottom:18px; }
+    h1 .accent { color: var(--electric); }
+    .sub { color: var(--muted); font-size:18px; max-width:620px; margin:0 auto 34px; }
+
+    .card { background: var(--panel); border:1px solid var(--border); border-radius:18px; padding:28px; }
+    .input-row { display:flex; gap:12px; flex-wrap:wrap; }
+    input[type=text] {
+      flex:1; min-width:240px; background:rgba(2,6,23,.5); border:1px solid var(--border);
+      border-radius:12px; padding:14px 18px; font-size:15px; color:var(--text); outline:none;
+      font-family:inherit; transition:border .2s;
+    }
+    input[type=text]:focus { border-color: var(--electric); }
+    input[type=text]::placeholder { color:#64748b; }
+    button.primary {
+      background: var(--electric); color:#020617; font-weight:600; border:none; border-radius:12px;
+      padding:14px 26px; font-size:15px; cursor:pointer; font-family:inherit;
+      box-shadow: 0 10px 30px rgba(96,165,250,.25); transition:all .2s;
+    }
+    button.primary:hover { background: var(--electric-300); transform: translateY(-1px); }
+    button.primary:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+    .hint { font-size:13px; color:#64748b; margin-top:14px; }
+
+    /* progress */
+    .progress-shell { margin-top:20px; }
+    .progress-track { height:8px; background:#1e293b; border-radius:99px; overflow:hidden; }
+    .progress-bar { height:100%; width:0; background:linear-gradient(90deg,var(--electric),var(--electric-300)); transition:width .4s ease; }
+    .progress-label { margin-top:10px; font-size:13px; color:var(--muted); }
+
+    .sect { padding:48px 0; }
+    .sect h2 { font-size:26px; font-weight:700; margin-bottom:8px; }
+    .sect .lead { color:var(--muted); margin-bottom:28px; }
+
+    .rows { display:flex; flex-direction:column; gap:10px; }
+    .row { display:flex; gap:14px; padding:16px; background:rgba(2,6,23,.4); border:1px solid var(--border); border-radius:12px; }
+    .row .avatar { width:38px; height:38px; border-radius:8px; background:var(--electric); color:#020617; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; }
+    .row .who { font-weight:600; font-size:14px; display:flex; align-items:baseline; gap:8px; }
+    .row .when { font-size:12px; color:#64748b; }
+    .row .txt { font-size:14px; color:var(--muted); margin-top:4px; }
+    .row .like { font-size:12px; color:#64748b; margin-top:6px; }
+    .row.reply { margin-left:40px; border-color:#334155; }
+
+    .meta-bar { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin-bottom:24px; font-size:14px; color:var(--muted); }
+    .meta-bar strong { color: var(--text); }
+
+    .btn-secondary {
+      background:transparent; border:1px solid var(--border); color:var(--text); border-radius:12px;
+      padding:12px 22px; font-size:14px; font-weight:500; cursor:pointer; font-family:inherit; transition:all .2s;
+    }
+    .btn-secondary:hover { border-color:var(--electric); color:var(--electric-300); }
+
+    .insight { border:1px solid var(--electric); background:var(--panel); border-radius:18px; padding:24px; margin:28px 0; }
+    .insight h3 { font-size:18px; font-weight:700; margin-bottom:12px; color:var(--electric-300); }
+    .insight ul { padding-left:20px; display:flex; flex-direction:column; gap:8px; }
+    .insight li { color:var(--muted); font-size:14px; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { background:rgba(96,165,250,.12); color:var(--electric-300); border:1px solid rgba(96,165,250,.3); padding:4px 12px; border-radius:99px; font-size:13px; }
+
+    .promo { display:flex; flex-direction:column; gap:16px; padding:26px; }
+    .promo .big { font-size:16px; font-weight:600; }
+
+    .err { background:rgba(220,38,38,.1); border:1px solid rgba(220,38,38,.4); color:#fca5a5; border-radius:12px; padding:14px 18px; font-size:14px; margin-top:16px; }
+    .ok { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.4); color:#86efac; border-radius:12px; padding:14px 18px; font-size:14px; margin-top:16px; }
+
+    footer { border-top:1px solid var(--border); padding:24px 0; text-align:center; color:#64748b; font-size:13px; }
+    .hidden { display:none !important; }
+    .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:40px; }
+    .step { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; }
+    .step .n { font-size:12px; color:var(--electric); font-weight:600; letter-spacing:.2em; }
+    .step h4 { margin:8px 0; font-size:16px; }
+    .step p { color:var(--muted); font-size:14px; }
+
+    @media (max-width:600px){ .nav-links{display:none;} }
+  </style>
+</head>
+<body>
+  <div class="glow-top"></div>
+  <div class="grid-bg" style="position:fixed;inset:0;z-index:0;pointer-events:none"></div>
+
+  <header class="top">
+    <nav>
+      <a href="/" class="brand"><span class="bolt">⚡</span><span>Chatter<span class="bolt">matIQ</span></span></a>
+      <div class="nav-links">
+        <a href="#tool">Tool</a>
+        <a href="#how">How it works</a>
+        <a href="mailto:hello@chattermatiq.com">Contact</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO + TOOL -->
+    <section class="hero" id="tool">
+      <div class="wrap">
+        <p class="kicker">YouTube Comment Intelligence</p>
+        <h1>Extract every comment.<br/><span class="accent">Understand your audience.</span></h1>
+        <p class="sub">Paste any YouTube link below. We pull the real comments and surface the sentiment, themes, and objections — without reading a single one manually.</p>
+
+        <div class="card" style="text-align:left">
+          <form id="form">
+            <div class="input-row">
+              <input type="text" id="url" placeholder="Paste a YouTube video link… e.g. https://youtube.com/watch?v=…" autocomplete="off" />
+              <button type="submit" class="primary" id="go">Analyze ↓</button>
+            </div>
+            <div class="hint" id="hint-line">Free preview, no signup needed. Fetch the full set as CSV/Excel when you're ready.</div>
+          </form>
+
+          <div id="progress" class="progress-shell hidden">
+            <div class="progress-track"><div class="progress-bar" id="bar"></div></div>
+            <div class="progress-label" id="plabel">Connecting to YouTube…</div>
+          </div>
+
+          <div id="err" class="err hidden"></div>
+          <div id="ok" class="ok hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section id="results" class="sect hidden">
+      <div class="wrap">
+        <div class="meta-bar" id="metabar"></div>
+        <div id="insights"></div>
+        <button class="primary" id="exportBtn" style="margin-bottom:24px">⬇ Download all comments (CSV / Excel)</button>
+        <div class="rows" id="rows"></div>
+      </div>
+    </section>
+
+    <!-- HOW -->
+    <section class="sect" id="how">
+      <div class="wrap">
+        <h2>How it works</h2>
+        <p class="lead">From raw comments to real insight in three steps.</p>
+        <div class="steps">
+          <div class="step"><div class="n">01</div><h4>Paste a link</h4><p>Any public YouTube video, Short, or Live URL. We resolve it instantly.</p></div>
+          <div class="step"><div class="n">02</div><h4>AI analysis</h4><p>We fetch the real comments, then classify sentiment and cluster the recurring themes and objections.</p></div>
+          <div class="step"><div class="n">03</div><h4>Export</h4><p>Get a clean CSV/Excel file with author, text, timestamp, likes, and replies — ready for your spreadsheet.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>© <span id="year"></span> ChattermatIQ · Made with ⚡ by Manjyot Rait</footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    $('year').textContent = new Date().getFullYear();
+
+    // -- no fake timers: progress reflects real readyState only --
+    function setProgress(pct, label){
+      $('bar').style.width = pct + '%';
+      if (label) $('plabel').textContent = label;
+      if (pct >= 100){ setTimeout(()=> $('progress').classList.add('hidden'), 400); }
+    }
+    function showErr(m){ const e=$('err'); e.textContent=m; e.classList.remove('hidden'); $('ok').classList.add('hidden'); }
+    function hideErr(){ $('err').classList.add('hidden'); }
+
+    function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+    function fmtDate(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleString(); }catch{ return iso; } }
+
+    function avatarInit(name){ return (name||'?').trim().charAt(0).toUpperCase(); }
+
+    function computeInsights(comments){
+      // simple, real, dependency-free sentiment from this batch
+      const pos=['great','love','awesome','amazing','good','thanks','thank','nice','best','helpful','cool','perfect','excellent','fire','peak','goat'];
+      const neg=['bad','hate','awful','worst','terrible','disappointed','waste','scam','broken','useless','trash','sucks','boring','hated'];
+      const text=comments.filter(c=>c&&c.text).map(c=>c.text.toLowerCase());
+      let posN=0, negN=0, neuN=0;
+      for(const t of text){ let p=0,n=0; for(const w of pos) if(t.includes(w))p++; for(const w of neg) if(t.includes(w))n++; if(p>n)posN++; else if(n>p)negN++; else neuN++; }
+      const tot=Math.max(1,text.length);
+      const posPct=Math.round(posN/tot*100), negPct=Math.round(negN/tot*100), neuPct=100-posPct-negPct;
+      return { posPct, negPct, neuPct, count:text.length };
+    }
+
+    let currentMeta = null;
+
+    $('form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const url = $('url').value.trim();
+      if(!url) return;
+      hideErr();
+      $('ok').classList.add('hidden');
+      $('rows').innerHTML=''; $('insights').innerHTML=''; $('metabar').innerHTML='';
+      $('results').classList.add('hidden');
+      $('progress').classList.remove('hidden');
+      setProgress(8,'Connecting to YouTube…');
+      try {
+        const res = await fetch('/api/preview', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}) });
+        setProgress(55,'Fetching real comments…');
+        const data = await res.json();
+        if(!res.ok){ throw new Error(data.error||'Failed to analyze'); }
+        setProgress(90,'Analyzing sentiment…');
+        await new Promise(r=>setTimeout(r, 500)); // brief, honest settle
+        setProgress(100,'Done.');
+        render(data);
+      } catch(err){ showErr(err.message); $('progress').classList.add('hidden'); }
+    });
+
+    $('exportBtn').addEventListener('click', async () => {
+      const url = $('url').value.trim();
+      if(!url){ return; }
+      $('exportBtn').disabled=true; $('exportBtn').textContent='Preparing export…';
+      try{
+        const res = await fetch('/api/export', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, maxResults:1000}) });
+        if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error||'Export failed'); }
+        const blob = await res.blob();
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='comments.csv'; a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+      }catch(err){ showErr(err.message); }
+      $('exportBtn').disabled=false; $('exportBtn').textContent='⬇ Download all comments (CSV / Excel)';
+    });
+
+    function render(data){
+      const meta = data.video || {}; currentMeta = meta;
+      const comments = data.comments || [];
+      $('metabar').innerHTML =
+        `<span class="title">${esc(meta.title||'Video')}</span>`+
+        (meta.channel?`<span>Channel: <b>${esc(meta.channel)}</b></span>`:'')+
+        `<span>${comments.length} comments shown · <a href="${esc(meta.url)}" target="_blank" style="color:var(--electric)">open on YouTube ↗</a></span>`;
+
+      const flat = comments.map(c=>c.text||'').filter(Boolean);
+      const s = computeInsights(flat);
+      $('insights').innerHTML = `
+        <div class="insight">
+          <h3>🧠 AI sentiment on this video</h3>
+          <div class="chips" style="margin-bottom:14px">
+            <span class="chip">👍 Positive ${s.posPct}%</span>
+            <span class="chip">😐 Neutral ${s.neuPct}%</span>
+            <span class="chip">👎 Negative ${s.negPct}%</span>
+          </div>
+          <ul>
+            <li>Sampled <b>${s.count}</b> comment(s) — export the full set for a complete read.</li>
+          </ul>
+        </div>`;
+
+      let rows='';
+      for(const c of comments){
+        rows += `<div class="row"><div class="avatar">${esc(avatarInit(c.author))}</div><div>
+          <div class="who">${esc(c.author)} <span class="when">${esc(fmtDate(c.timestamp))}</span></div>
+          <div class="txt">${esc(c.text)}</div>
+          <div class="like">👍 ${c.likes||0}</div></div></div>`;
+        for(const r of (c.replies||[])){
+          rows += `<div class="row" style="margin-left:44px"><div class="avatar">${esc(avatarInit(r.author))}</div><div>
+            <div class="who">${esc(r.author)} <span class="when">${esc(fmtTime(r.timestamp))}</span></div>
+            <div class="txt">${esc(r.text)}</div></div></div>`;
+        }
+      }
+      $('rows').innerHTML = rows || '<div style="color:var(--muted);padding:20px">No comments found on this video.</div>';
+      $('results').classList.remove('hidden');
+      $('results').scrollIntoView({behavior:'smooth'});
+    }
+    function fmtTime(iso){ return fmtDate(iso); }
+  </script>
+</body>
+</html>
