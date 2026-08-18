@@ -108,7 +108,6 @@ export async function analyzeWithDeepSeek({
       objections: asStrArray(parsed.objections),
       topRequests: asStrArray(parsed.top_requests),
       recommendations: asStrArray(parsed.recommendations),
-      model,
       sampleSize: text.length,
     };
   } catch (err) {

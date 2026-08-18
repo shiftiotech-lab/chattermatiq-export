@@ -44,7 +44,7 @@ fs.existsSync(DIST) &&
 app.get('/api/health', async () => ({
   status: 'ok',
   hasApiKey: Boolean(API_KEY),
-  ai: DEEPSEEK_KEY ? { enabled: true, model: DEEPSEEK_MODEL } : { enabled: false, model: DEEPSEEK_MODEL },
+  aiEnabled: Boolean(DEEPSEEK_KEY),
   version: '0.1.0',
 }));
 
