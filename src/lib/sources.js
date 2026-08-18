@@ -99,7 +99,7 @@ const APIFY_ACTORS = {
   instagram: { actor: 'apify/instagram-comment-scraper', input: (url) => ({ directUrls: [url] }) },
   facebook: { actor: 'apify/facebook-comments-scraper', input: (url) => ({ startUrls: [{ url }], includeNestedComments: true, viewOption: 'RANKED_UNFILTERED' }) },
   x: { actor: 'apidojo/twitter-replies-scraper', input: (url) => ({ urls: [url] }) },
-  linkedin: { actor: 'apimaestro/linkedin-post-comments-replies-engagements-scraper-no-cookies', input: (url) => ({ url }) },
+  linkedin: { actor: 'apimaestro/linkedin-post-comments-replies-engagements-scraper-no-cookies', input: (url) => ({ postIds: [url] }) },
   reddit: { actor: 'newbs/reddit-comment-scraper', input: (url) => ({ postUrls: [url] }) },
 };
 
