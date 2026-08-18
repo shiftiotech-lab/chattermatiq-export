@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import fs from 'node:fs';
-import { extractVideoId, fetchComments, fetchVideoMeta } from './lib/youtube.js';
+import { fetchPreview, fetchAll } from './lib/sources.js';
 import { flattenComments, toCsv, HEADERS } from './lib/csv.js';
 import { analyzeWithDeepSeek } from './lib/deepseek.js';
 
@@ -48,68 +48,50 @@ app.get('/api/health', async () => ({
   version: '0.1.0',
 }));
 
-// Parse a URL -> video info + preview of real comments (no login needed for preview of first N).
+// Parse a URL -> platform info + preview of real comments (no login needed for preview of first N).
 app.post('/api/preview', async (req, reply) => {
   const { url } = req.body || {};
-  const videoId = extractVideoId(url);
-  if (!videoId) {
-    return reply.code(400).send({ error: 'Please provide a valid YouTube URL.' });
-  }
-  if (!API_KEY) {
-    return reply
-      .code(500)
-      .send({ error: 'Server not configured with a YouTube API key (YOUTUBE_API_KEY).' });
-  }
   try {
-    const [meta, { comments }] = await Promise.all([
-      fetchVideoMeta({ videoId, apiKey: API_KEY }),
-      fetchComments({ videoId, apiKey: API_KEY, maxResults: 15 }),
-    ]);
-    // DeepSeek insight over the sample (graceful: null if no key / failure).
+    const result = await fetchPreview(url, process.env);
     const ai = DEEPSEEK_KEY
       ? await analyzeWithDeepSeek({
-          comments,
+          comments: result.comments,
           apiKey: DEEPSEEK_KEY,
           model: DEEPSEEK_MODEL,
-          videoTitle: meta.title,
+          videoTitle: result.source.title,
           maxComments: 15,
         })
       : null;
-    return { video: meta, comments: comments.slice(0, 15), truncated: comments.length >= 15, ai };
+    return {
+      platform: result.platform,
+      video: result.source,
+      comments: result.comments,
+      truncated: result.truncated,
+      ai,
+    };
   } catch (err) {
     app.log.error(err);
-    return reply.code(502).send({ error: err.message });
+    const status = err.message.startsWith('Platform not yet supported') ? 501 : 502;
+    return reply.code(status).send({ error: err.message });
   }
 });
 
 // Export all comments as CSV.
 app.post('/api/export', async (req, reply) => {
   const { url, maxResults = 1000 } = req.body || {};
-  const videoId = extractVideoId(url);
-  if (!videoId) {
-    return reply.code(400).send({ error: 'Please provide a valid YouTube URL.' });
-  }
-  if (!API_KEY) {
-    return reply
-      .code(500)
-      .send({ error: 'Server not configured with a YouTube API key (YOUTUBE_API_KEY).' });
-  }
   try {
-    const limit = Math.min(Math.max(Number(maxResults) || 1000, 1), 10000);
-    const [meta, result] = await Promise.all([
-      fetchVideoMeta({ videoId, apiKey: API_KEY }),
-      fetchComments({ videoId, apiKey: API_KEY, maxResults: limit }),
-    ]);
+    const result = await fetchAll(url, process.env, maxResults);
     const rows = flattenComments(result.comments);
     const csv = toCsv(rows);
-    const safeTitle = (meta.title || videoId).replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60);
+    const safeTitle = (result.source.title || url).replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60);
     reply
       .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', `attachment; filename="comments_${safeTitle}.csv"`)
+      .header('Content-Disposition', `attachment; filename="${result.platform}_${safeTitle}.csv"`)
       .send(BOM + csv);
   } catch (err) {
     app.log.error(err);
-    return reply.code(502).send({ error: err.message });
+    const status = err.message.startsWith('Platform not yet supported') ? 501 : 502;
+    return reply.code(status).send({ error: err.message });
   }
 });
 

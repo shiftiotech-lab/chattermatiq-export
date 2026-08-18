@@ -1,5 +1,7 @@
 import { extractVideoId } from './src/lib/youtube.js';
 import { flattenComments, toCsv } from './src/lib/csv.js';
+import { detectPlatform } from './src/lib/sources.js';
+import { extractRedditUrl } from './src/lib/reddit.js';
 
 let pass = 0, fail = 0;
 function eq(name, got, want) {
@@ -29,6 +31,23 @@ const csv = toCsv(rows);
 eq('csv has header', csv.split('\n')[0].includes('Author'), true);
 eq('csv escapes quote', csv.includes('"Someone, ""Quoted"""'), true);
 eq('csv includes reply', csv.includes('with, comma'), true);
+
+// ---- platform detection ----
+eq('detect yt watch', detectPlatform('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'youtube');
+eq('detect youtu.be', detectPlatform('https://youtu.be/dQw4w9WgXcQ'), 'youtube');
+eq('detect reddit', detectPlatform('https://www.reddit.com/r/tech/comments/1abc/'), 'reddit');
+eq('detect redd.it', detectPlatform('https://redd.it/1abc'), 'reddit');
+eq('detect instagram', detectPlatform('https://www.instagram.com/p/xyz/'), 'instagram');
+eq('detect tiktok', detectPlatform('https://www.tiktok.com/@x/video/123'), 'tiktok');
+eq('detect x', detectPlatform('https://x.com/user/status/123'), 'x');
+eq('detect unknown', detectPlatform('https://example.com/x'), null);
+
+// ---- Reddit URL parsing ----
+eq('reddit full', extractRedditUrl('https://www.reddit.com/r/technology/comments/1abc/slug/')?.postId, '1abc');
+eq('reddit sub', extractRedditUrl('https://www.reddit.com/r/technology/comments/1abc/slug/')?.subreddit, 'technology');
+eq('reddit short', extractRedditUrl('https://redd.it/1xyz')?.postId, '1xyz');
+eq('reddit non-reddit', extractRedditUrl('https://youtube.com/x'), null);
+eq('reddit garbage', extractRedditUrl('not a url'), null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
