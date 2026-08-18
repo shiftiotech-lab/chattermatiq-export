@@ -1,8 +1,6 @@
 import { extractVideoId } from './src/lib/youtube.js';
 import { flattenComments, toCsv } from './src/lib/csv.js';
 import { detectPlatform } from './src/lib/sources.js';
-import { extractRedditUrl } from './src/lib/reddit.js';
-import { extractLemmyUrl } from './src/lib/lemmy.js';
 
 let pass = 0, fail = 0;
 function eq(name, got, want) {
@@ -10,7 +8,7 @@ function eq(name, got, want) {
   else { fail++; console.log(`FAIL ${name}: got=${JSON.stringify(got)} want=${JSON.stringify(want)}`); }
 }
 
-// URL parsing
+// YouTube URL parsing
 eq('watch?v=', extractVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
 eq('youtu.be', extractVideoId('https://youtu.be/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
 eq('shorts', extractVideoId('https://www.youtube.com/shorts/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
@@ -33,30 +31,17 @@ eq('csv has header', csv.split('\n')[0].includes('Author'), true);
 eq('csv escapes quote', csv.includes('"Someone, ""Quoted"""'), true);
 eq('csv includes reply', csv.includes('with, comma'), true);
 
-// ---- platform detection ----
-eq('detect yt watch', detectPlatform('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'youtube');
-eq('detect youtu.be', detectPlatform('https://youtu.be/dQw4w9WgXcQ'), 'youtube');
-eq('detect reddit', detectPlatform('https://www.reddit.com/r/tech/comments/1abc/'), 'reddit');
-eq('detect redd.it', detectPlatform('https://redd.it/1abc'), 'reddit');
-eq('detect instagram', detectPlatform('https://www.instagram.com/p/xyz/'), 'instagram');
-eq('detect tiktok', detectPlatform('https://www.tiktok.com/@x/video/123'), 'tiktok');
+// Platform detection (the 6 target platforms)
+eq('detect yt', detectPlatform('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'youtube');
+eq('detect ig', detectPlatform('https://www.instagram.com/p/xyz/'), 'instagram');
+eq('detect fb', detectPlatform('https://www.facebook.com/somepage/posts/123'), 'facebook');
 eq('detect x', detectPlatform('https://x.com/user/status/123'), 'x');
-eq('detect lemmy', detectPlatform('https://lemmy.ml/post/24263127'), 'lemmy');
-eq('detect lemmy other inst', detectPlatform('https://sh.itjust.works/post/123'), 'lemmy');
+eq('detect twitter', detectPlatform('https://twitter.com/user/status/123'), 'x');
+eq('detect linkedin', detectPlatform('https://www.linkedin.com/posts/123'), 'linkedin');
+eq('detect reddit', detectPlatform('https://www.reddit.com/r/tech/comments/1abc/'), 'reddit');
 eq('detect unknown', detectPlatform('https://example.com/x'), null);
-
-// ---- Reddit URL parsing ----
-eq('reddit full', extractRedditUrl('https://www.reddit.com/r/technology/comments/1abc/slug/')?.postId, '1abc');
-eq('reddit sub', extractRedditUrl('https://www.reddit.com/r/technology/comments/1abc/slug/')?.subreddit, 'technology');
-eq('reddit short', extractRedditUrl('https://redd.it/1xyz')?.postId, '1xyz');
-eq('reddit non-reddit', extractRedditUrl('https://youtube.com/x'), null);
-eq('reddit garbage', extractRedditUrl('not a url'), null);
-
-// ---- Lemmy URL parsing ----
-eq('lemmy post', extractLemmyUrl('https://lemmy.ml/post/51548806')?.postId, '51548806');
-eq('lemmy instance', extractLemmyUrl('https://lemmy.ml/post/51548806')?.instance, 'lemmy.ml');
-eq('lemmy non-lemmy', extractLemmyUrl('https://youtube.com/watch?v=x'), null);
-eq('lemmy youtube-like tld blocked', extractLemmyUrl('https://lemmy.world/post/123') === null || true, true);
+eq('detect lemmy omitted', detectPlatform('https://lemmy.ml/post/123'), null); // out of scope now
+eq('detect empty', detectPlatform(''), null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

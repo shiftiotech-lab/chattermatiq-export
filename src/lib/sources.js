@@ -3,52 +3,49 @@
  *
  * Every platform adapter returns the SAME shape:
  *   {
- *     platform: 'youtube' | 'reddit' | ...,
+ *     platform: 'youtube' | 'instagram' | 'facebook' | 'x' | 'linkedin' | 'reddit',
  *     source: { title, channel?, url, platformLabel },
  *     comments: [ { id, author, text, timestamp?, likes?, replies: [...] } ],
  *     truncated, hasMore
  *   }
  *
- * The CSV export and DeepSeek analysis both consume only this shape, so adding
- * a new platform = adding one adapter here, nothing else changes downstream.
+ * The CSV export and DeepSeek analysis consume only this shape, so a new
+ * platform = adding one adapter here; nothing downstream changes.
  */
 
 import { extractVideoId, fetchComments, fetchVideoMeta } from './youtube.js';
-import { extractRedditUrl, fetchRedditThread } from './reddit.js';
-import { extractLemmyUrl, fetchLemmyThread } from './lemmy.js';
+import { runActor } from './apify.js';
 
 /** Detect which platform a URL points to. Returns lowercase platform id or null. */
 export function detectPlatform(url) {
   if (!url || typeof url !== 'string') return null;
   const u = url.trim().toLowerCase();
   if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
-  if (u.includes('reddit.com') || u.includes('redd.it') || u.includes('reddit')) return 'reddit';
-  if (u.includes('instagram.com')) return 'instagram';
-  if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
-  if (u.includes('tiktok.com')) return 'tiktok';
+  if (u.includes('instagram.com') || u.includes('instagr.am')) return 'instagram';
+  if (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('facebook')) return 'facebook';
   if (u.includes('x.com') || u.includes('twitter.com')) return 'x';
   if (u.includes('linkedin.com')) return 'linkedin';
-  if (extractLemmyUrl(url)) return 'lemmy';
+  if (u.includes('reddit.com') || u.includes('redd.it')) return 'reddit';
   return null;
 }
 
 /**
- * Fetch a preview (small sample, no login required).
+ * Fetch a preview (small sample).
  * @returns normalized source object
  */
 export async function fetchPreview(url, env) {
   const platform = detectPlatform(url);
   switch (platform) {
-    case 'youtube':
-      return youtubePreview(url, env);
-    case 'reddit':
-      return redditPreview(url, env);
-    case 'lemmy':
-      return lemmyPreview(url, env);
+    case 'youtube': return youtubePreview(url, env);
+    case 'instagram': return apifyPreview(url, env, 'instagram');
+    case 'facebook': return apifyPreview(url, env, 'facebook');
+    case 'x': return apifyPreview(url, env, 'x');
+    case 'linkedin': return apifyPreview(url, env, 'linkedin');
+    case 'reddit': return apifyPreview(url, env, 'reddit');
     default:
       throw new Error(
-        `Platform not yet supported: ${platform || 'unknown'}. ` +
-        'We currently support YouTube and Reddit.'
+        `Platform not recognized: ${platform || 'this URL'}. ` +
+        'We support YouTube, Instagram, Facebook, X, LinkedIn, and Reddit.'
       );
   }
 }
@@ -59,21 +56,21 @@ export async function fetchPreview(url, env) {
 export async function fetchAll(url, env, maxResults = 1000) {
   const platform = detectPlatform(url);
   switch (platform) {
-    case 'youtube':
-      return youtubeAll(url, env, maxResults);
-    case 'reddit':
-      return redditAll(url, env, maxResults);
-    case 'lemmy':
-      return lemmyAll(url, env, maxResults);
+    case 'youtube': return youtubeAll(url, env, maxResults);
+    case 'instagram': return apifyAll(url, env, 'instagram', maxResults);
+    case 'facebook': return apifyAll(url, env, 'facebook', maxResults);
+    case 'x': return apifyAll(url, env, 'x', maxResults);
+    case 'linkedin': return apifyAll(url, env, 'linkedin', maxResults);
+    case 'reddit': return apifyAll(url, env, 'reddit', maxResults);
     default:
       throw new Error(
-        `Platform not yet supported: ${platform || 'unknown'}. ` +
-        'We currently support YouTube and Reddit.'
+        `Platform not recognized: ${platform || 'this URL'}. ` +
+        'We support YouTube, Instagram, Facebook, X, LinkedIn, and Reddit.'
       );
   }
 }
 
-// ---------- YouTube adapters (already normalized by youtube.js, map to shape) ----------
+// ---------- YouTube (free, official Data API) ----------
 
 async function youtubePreview(url, env) {
   const videoId = extractVideoId(url);
@@ -82,18 +79,7 @@ async function youtubePreview(url, env) {
     fetchVideoMeta({ videoId, apiKey: env.YOUTUBE_API_KEY }),
     fetchComments({ videoId, apiKey: env.YOUTUBE_API_KEY, maxResults: 15 }),
   ]);
-  return {
-    platform: 'youtube',
-    source: {
-      title: meta.title,
-      channel: meta.channel,
-      url: meta.url,
-      platformLabel: 'YouTube',
-    },
-    comments: comments.slice(0, 15),
-    truncated: comments.length >= 15,
-    hasMore: comments.length >= 15,
-  };
+  return norm('youtube', { title: meta.title, channel: meta.channel, url: meta.url }, comments.slice(0, 15));
 }
 
 async function youtubeAll(url, env, maxResults) {
@@ -104,127 +90,97 @@ async function youtubeAll(url, env, maxResults) {
     fetchVideoMeta({ videoId, apiKey: env.YOUTUBE_API_KEY }),
     fetchComments({ videoId, apiKey: env.YOUTUBE_API_KEY, maxResults: limit }),
   ]);
-  return {
-    platform: 'youtube',
-    source: { title: meta.title, channel: meta.channel, url: meta.url, platformLabel: 'YouTube' },
-    comments: result.comments,
-    truncated: result.truncated,
-    hasMore: result.hasMore,
-  };
+  return norm('youtube', { title: meta.title, channel: meta.channel, url: meta.url }, result.comments);
 }
 
-// ---------- Reddit adapters (OAuth client-credentials, free after app registration) ----------
+// ---------- Apify-powered platforms (Instagram, Facebook, X, LinkedIn, Reddit) ----------
 
-async function redditPreview(url, env) {
-  const info = extractRedditUrl(url);
-  if (!info) throw new Error('Please provide a valid Reddit post URL.');
-  const { clientId, clientSecret, userAgent } = requireRedditAuth(env);
-  const token = await getRedditToken({ clientId, clientSecret, userAgent });
-  const result = await fetchRedditThread({ ...info, token, userAgent, maxComments: 20 });
-  return {
-    platform: 'reddit',
-    source: {
-      title: result.title,
-      channel: result.subreddit ? `r/${result.subreddit}` : null,
-      url: result.url,
-      platformLabel: 'Reddit',
-    },
-    comments: result.comments.slice(0, 20),
-    truncated: result.comments.length >= 20,
-    hasMore: result.hasMore,
-  };
-}
+const APIFY_ACTORS = {
+  instagram: { actor: 'apify/instagram-comment-scraper', input: (url) => ({ directUrls: [url] }) },
+  facebook: { actor: 'apify/facebook-comments-scraper', input: (url) => ({ urls: [url] }) },
+  x: { actor: 'apidojo/twitter-replies-scraper', input: (url) => ({ urls: [url] }) },
+  linkedin: { actor: 'apimaestro/linkedin-post-comments-replies-engagements-scraper-no-cookies', input: (url) => ({ url }) },
+  reddit: { actor: 'newbs/reddit-comment-scraper', input: (url) => ({ postUrls: [url] }) },
+};
 
-async function redditAll(url, env, maxResults) {
-  const info = extractRedditUrl(url);
-  if (!info) throw new Error('Please provide a valid Reddit post URL.');
-  const { clientId, clientSecret, userAgent } = requireRedditAuth(env);
-  const token = await getRedditToken({ clientId, clientSecret, userAgent });
-  const limit = Math.min(Math.max(Number(maxResults) || 1000, 1), 5000);
-  const result = await fetchRedditThread({ ...info, token, userAgent, maxComments: limit });
-  return {
-    platform: 'reddit',
-    source: {
-      title: result.title,
-      channel: result.subreddit ? `r/${result.subreddit}` : null,
-      url: result.url,
-      platformLabel: 'Reddit',
-    },
-    comments: result.comments,
-    truncated: result.truncated,
-    hasMore: result.hasMore,
-  };
-}
+const PLATFORM_LABEL = {
+  instagram: 'Instagram', facebook: 'Facebook', x: 'X/Twitter',
+  linkedin: 'LinkedIn', reddit: 'Reddit',
+};
 
-// ---------- Lemmy adapters (no credentials needed — open public API) ----------
-
-async function lemmyPreview(url, env) {
-  const info = extractLemmyUrl(url);
-  if (!info) throw new Error('Please provide a valid Lemmy post URL.');
-  const result = await fetchLemmyThread({ ...info, maxComments: 20 });
-  return {
-    platform: 'lemmy',
-    source: {
-      title: result.title,
-      channel: result.community ? `c/${result.community}` : null,
-      url: result.url,
-      platformLabel: 'Lemmy',
-    },
-    comments: result.comments.slice(0, 20),
-    truncated: result.comments.length >= 20,
-    hasMore: result.hasMore,
-  };
-}
-
-async function lemmyAll(url, env, maxResults) {
-  const info = extractLemmyUrl(url);
-  if (!info) throw new Error('Please provide a valid Lemmy post URL.');
-  const limit = Math.min(Math.max(Number(maxResults) || 1000, 1), 5000);
-  const result = await fetchLemmyThread({ ...info, maxComments: limit });
-  return {
-    platform: 'lemmy',
-    source: {
-      title: result.title,
-      channel: result.community ? `c/${result.community}` : null,
-      url: result.url,
-      platformLabel: 'Lemmy',
-    },
-    comments: result.comments,
-    truncated: result.truncated,
-    hasMore: result.hasMore,
-  };
-}
-
-function requireRedditAuth(env) {
-  const clientId = env.REDDIT_CLIENT_ID || '';
-  const clientSecret = env.REDDIT_CLIENT_SECRET || '';
-  if (!clientId || !clientSecret) {
+function requireApify(env) {
+  const token = env.APIFY_TOKEN || '';
+  if (!token) {
     throw new Error(
-      'Reddit requires a free app registration. Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET in .env ' +
-      '(create one at https://www.reddit.com/prefs/apps → "script" app).'
+      'This platform is pulled via Apify. Add APIFY_TOKEN to .env ' +
+      '(https://apify.com → Settings → Integrations).'
     );
   }
-  const userAgent = env.REDDIT_USER_AGENT || 'chattermatiq-export:v0.1 (by /u/manjyot)';
-  return { clientId, clientSecret, userAgent };
+  return token;
 }
 
-export async function getRedditToken({ clientId, clientSecret, userAgent }) {
-  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const res = await fetch('https://www.reddit.com/api/v1/access_token', {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basic}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': userAgent,
+async function runApify(platform, url, env, maxResults) {
+  const token = requireApify(env);
+  const cfg = APIFY_ACTORS[platform];
+  const actorId = cfg.actor;
+  const input = cfg.input(url);
+
+  const items = await runActor({ actorId, input, token });
+
+  // Normalize Apify item rows into the shared shape (fields vary by actor).
+  const comments = items
+    .map((it) => ({
+      id: it.id || it.commentUrl || it.commentId || it.uid || null,
+      author: it.ownerUsername || it.username || it.owner?.username || it.author || it.user?.username || it.creatorName || 'Unknown',
+      text: it.text || it.comment || it.body || it.description || it.content || '',
+      timestamp: it.timestamp || it.createdAt || it.date || it.publishedAt || null,
+      likes: typeof it.likesCount === 'number' ? it.likesCount : it.likeCount ?? it.likes ?? 0,
+      replies: Array.isArray(it.replies)
+        ? it.replies.map((r) => ({
+            id: r.id || r.commentUrl || null,
+            author: r.ownerUsername || r.username || r.author || 'Unknown',
+            text: r.text || r.comment || '',
+            timestamp: r.timestamp || r.createdAt || null,
+            likes: typeof r.likesCount === 'number' ? r.likesCount : r.likeCount ?? 0,
+          }))
+        : [],
+    }))
+    .filter((c) => c.text && c.text.trim());
+
+  // Best-effort source title/channel from the first item.
+  const first = items[0] || {};
+  const title = first.postOwnerUsername
+    ? `Instagram post by @${first.postOwnerUsername}`
+    : (first.postTitle || first.fullText || first.status || null);
+  const channel = first.postOwnerUsername ? `@${first.postOwnerUsername}` : null;
+
+  return { comments, title, channel, url };
+}
+
+async function apifyPreview(url, env, platform) {
+  const { comments, title, channel, url: srcUrl } = await runApify(platform, url, env, 20);
+  return norm(platform, { title, channel, url: srcUrl }, comments.slice(0, 20));
+}
+
+async function apifyAll(url, env, platform, maxResults) {
+  const limit = Math.min(Math.max(Number(maxResults) || 1000, 1), 10000);
+  const { comments, title, channel, url: srcUrl } = await runApify(platform, url, env, limit);
+  return norm(platform, { title, channel, url: srcUrl }, comments);
+}
+
+// ---------- shared normalizer ----------
+
+function norm(platform, source, comments) {
+  return {
+    platform,
+    source: {
+      title: source.title || null,
+      channel: source.channel || null,
+      url: source.url || null,
+      platformLabel: PLATFORM_LABEL[platform] || platform,
     },
-    body: 'grant_type=client_credentials',
-  });
-  if (!res.ok) {
-    let msg = `Reddit OAuth failed (${res.status})`;
-    try { const b = await res.json(); msg = b?.error || b?.message || msg; } catch {}
-    throw new Error(msg);
-  }
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Reddit OAuth returned no access token');
-  return data.access_token;
+    comments,
+    truncated: comments.length > 0,
+    hasMore: comments.length > 0,
+  };
 }
