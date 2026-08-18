@@ -131,10 +131,10 @@ async function runApify(platform, url, env, maxResults) {
   const comments = items
     .map((it) => ({
       id: it.id || it.commentUrl || it.commentId || it.commentUrlPlatform || null,
-      author: it.commentAuthor
-        || it.ownerUsername || it.owner?.username
-        || it.author || it.authorName || it.profileName
-        || it.user?.username || it.creatorName || 'Unknown',
+      author: nameOf(it.commentAuthor)
+        || nameOf(it.ownerUsername) || nameOf(it.owner?.username)
+        || nameOf(it.author) || nameOf(it.authorName) || nameOf(it.profileName)
+        || nameOf(it.user?.username) || nameOf(it.creatorName) || 'Unknown',
       text: it.commentText
         || it.text || it.comment || it.body || it.description || it.content || '',
       timestamp: it.commentTimestamp
@@ -188,10 +188,19 @@ function arrayReplies(it) {
   const arr = Array.isArray(it.replies) ? it.replies : (Array.isArray(it.comments) ? it.comments : []);
   return arr.map((r) => ({
     id: r.id || r.commentUrl || r.commentId || null,
-    author: r.commentAuthor || r.ownerUsername || r.username || r.author || r.profileName || 'Unknown',
+    author: nameOf(r.commentAuthor) || nameOf(r.ownerUsername) || nameOf(r.username)
+      || nameOf(r.author) || nameOf(r.profileName) || 'Unknown',
     text: r.commentText || r.text || r.comment || '',
     timestamp: r.commentTimestamp || r.timestamp || r.createdAt || r.date || null,
     likes: typeof r.commentScore === 'number' ? r.commentScore
       : (typeof r.likesCount === 'number' ? r.likesCount : r.likeCount ?? 0),
   }));
+}
+
+/** Coerce an author field that may be a string, null, or an object `{name}`. */
+function nameOf(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'object') return v.name || v.username || v.handle || '';
+  return String(v);
 }
