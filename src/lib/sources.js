@@ -15,6 +15,7 @@
 
 import { extractVideoId, fetchComments, fetchVideoMeta } from './youtube.js';
 import { extractRedditUrl, fetchRedditThread } from './reddit.js';
+import { extractLemmyUrl, fetchLemmyThread } from './lemmy.js';
 
 /** Detect which platform a URL points to. Returns lowercase platform id or null. */
 export function detectPlatform(url) {
@@ -27,6 +28,7 @@ export function detectPlatform(url) {
   if (u.includes('tiktok.com')) return 'tiktok';
   if (u.includes('x.com') || u.includes('twitter.com')) return 'x';
   if (u.includes('linkedin.com')) return 'linkedin';
+  if (extractLemmyUrl(url)) return 'lemmy';
   return null;
 }
 
@@ -41,6 +43,8 @@ export async function fetchPreview(url, env) {
       return youtubePreview(url, env);
     case 'reddit':
       return redditPreview(url, env);
+    case 'lemmy':
+      return lemmyPreview(url, env);
     default:
       throw new Error(
         `Platform not yet supported: ${platform || 'unknown'}. ` +
@@ -59,6 +63,8 @@ export async function fetchAll(url, env, maxResults = 1000) {
       return youtubeAll(url, env, maxResults);
     case 'reddit':
       return redditAll(url, env, maxResults);
+    case 'lemmy':
+      return lemmyAll(url, env, maxResults);
     default:
       throw new Error(
         `Platform not yet supported: ${platform || 'unknown'}. ` +
@@ -143,6 +149,45 @@ async function redditAll(url, env, maxResults) {
       channel: result.subreddit ? `r/${result.subreddit}` : null,
       url: result.url,
       platformLabel: 'Reddit',
+    },
+    comments: result.comments,
+    truncated: result.truncated,
+    hasMore: result.hasMore,
+  };
+}
+
+// ---------- Lemmy adapters (no credentials needed — open public API) ----------
+
+async function lemmyPreview(url, env) {
+  const info = extractLemmyUrl(url);
+  if (!info) throw new Error('Please provide a valid Lemmy post URL.');
+  const result = await fetchLemmyThread({ ...info, maxComments: 20 });
+  return {
+    platform: 'lemmy',
+    source: {
+      title: result.title,
+      channel: result.community ? `c/${result.community}` : null,
+      url: result.url,
+      platformLabel: 'Lemmy',
+    },
+    comments: result.comments.slice(0, 20),
+    truncated: result.comments.length >= 20,
+    hasMore: result.hasMore,
+  };
+}
+
+async function lemmyAll(url, env, maxResults) {
+  const info = extractLemmyUrl(url);
+  if (!info) throw new Error('Please provide a valid Lemmy post URL.');
+  const limit = Math.min(Math.max(Number(maxResults) || 1000, 1), 5000);
+  const result = await fetchLemmyThread({ ...info, maxComments: limit });
+  return {
+    platform: 'lemmy',
+    source: {
+      title: result.title,
+      channel: result.community ? `c/${result.community}` : null,
+      url: result.url,
+      platformLabel: 'Lemmy',
     },
     comments: result.comments,
     truncated: result.truncated,
