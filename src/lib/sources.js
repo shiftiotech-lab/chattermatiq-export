@@ -130,29 +130,27 @@ async function runApify(platform, url, env, maxResults) {
   // Normalize Apify item rows into the shared shape (fields vary by actor).
   const comments = items
     .map((it) => ({
-      id: it.id || it.commentUrl || it.commentId || it.uid || null,
-      author: it.ownerUsername || it.username || it.owner?.username || it.author || it.user?.username || it.creatorName || 'Unknown',
-      text: it.text || it.comment || it.body || it.description || it.content || '',
-      timestamp: it.timestamp || it.createdAt || it.date || it.publishedAt || null,
-      likes: typeof it.likesCount === 'number' ? it.likesCount : it.likeCount ?? it.likes ?? 0,
-      replies: Array.isArray(it.replies)
-        ? it.replies.map((r) => ({
-            id: r.id || r.commentUrl || null,
-            author: r.ownerUsername || r.username || r.author || 'Unknown',
-            text: r.text || r.comment || '',
-            timestamp: r.timestamp || r.createdAt || null,
-            likes: typeof r.likesCount === 'number' ? r.likesCount : r.likeCount ?? 0,
-          }))
-        : [],
+      id: it.id || it.commentUrl || it.commentId || it.commentUrlPlatform || null,
+      author: it.commentAuthor
+        || it.ownerUsername || it.owner?.username
+        || it.author || it.authorName || it.profileName
+        || it.user?.username || it.creatorName || 'Unknown',
+      text: it.commentText
+        || it.text || it.comment || it.body || it.description || it.content || '',
+      timestamp: it.commentTimestamp
+        || it.timestamp || it.createdAt || it.date || it.publishedAt || null,
+      likes: typeof it.commentScore === 'number' ? it.commentScore
+        : (typeof it.likesCount === 'number' ? it.likesCount : it.likeCount ?? it.likes ?? 0),
+      replies: arrayReplies(it),
     }))
     .filter((c) => c.text && c.text.trim());
 
   // Best-effort source title/channel from the first item.
   const first = items[0] || {};
-  const title = first.postOwnerUsername
-    ? `Instagram post by @${first.postOwnerUsername}`
-    : (first.postTitle || first.fullText || first.status || null);
-  const channel = first.postOwnerUsername ? `@${first.postOwnerUsername}` : null;
+  const title = first.postTitle || first.postOwnerUsername
+    ? (first.postTitle || first.fullText || first.status || `Post @${first.postOwnerUsername}`)
+    : null;
+  const channel = first.subreddit ? `r/${first.subreddit}` : (first.postOwnerUsername ? `@${first.postOwnerUsername}` : null);
 
   return { comments, title, channel, url };
 }
@@ -183,4 +181,17 @@ function norm(platform, source, comments) {
     truncated: comments.length > 0,
     hasMore: comments.length > 0,
   };
+}
+
+/** Handle reply arrays that differ across actors (IG 'replies[]', FB 'comments[]'). */
+function arrayReplies(it) {
+  const arr = Array.isArray(it.replies) ? it.replies : (Array.isArray(it.comments) ? it.comments : []);
+  return arr.map((r) => ({
+    id: r.id || r.commentUrl || r.commentId || null,
+    author: r.commentAuthor || r.ownerUsername || r.username || r.author || r.profileName || 'Unknown',
+    text: r.commentText || r.text || r.comment || '',
+    timestamp: r.commentTimestamp || r.timestamp || r.createdAt || r.date || null,
+    likes: typeof r.commentScore === 'number' ? r.commentScore
+      : (typeof r.likesCount === 'number' ? r.likesCount : r.likeCount ?? 0),
+  }));
 }

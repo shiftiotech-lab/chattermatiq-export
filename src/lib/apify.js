@@ -4,8 +4,13 @@
  */
 const API = 'https://api.apify.com/v2';
 
+/** Apify run-start API requires actor IDs as `owner~name` (slashes 404). */
+function actorIdKey(actorId) {
+  return actorId.replace('/', '~');
+}
+
 async function startActor(actorId, input, token) {
-  const url = `${API}/acts/${actorId}/runs`;
+  const url = `${API}/acts/${actorIdKey(actorId)}/runs`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
