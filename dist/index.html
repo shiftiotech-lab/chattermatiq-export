@@ -131,7 +131,8 @@
     .hidden { display:none !important; }
 
     /* pricing */
-    .pricing { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; margin-top:40px; }
+    .pricing { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:40px; }
+    @media (max-width:900px){ .pricing { grid-template-columns:1fr; } }
     .plan { background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:26px; position:relative; }
     .plan.popular { border-color:var(--electric); box-shadow:0 10px 30px rgba(96,165,250,.18); }
     .plan .cup { font-size:22px; margin-bottom:6px; }
