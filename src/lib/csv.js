@@ -20,7 +20,7 @@ function esc(value) {
 }
 
 /** Flatten comments (top-level + replies) into rows. */
-export function flattenComments(comments) {
+export function flattenComments(comments, sourceUrl = '') {
   const rows = [];
   for (const c of comments) {
     rows.push({
@@ -33,6 +33,7 @@ export function flattenComments(comments) {
       Likes: c.likes,
       RepliesCount: c.replies ? c.replies.length : 0,
       ReplyTo: '',
+      Link: c.url || sourceUrl || '',
     });
     for (const r of c.replies || []) {
       rows.push({
@@ -45,6 +46,7 @@ export function flattenComments(comments) {
         Likes: r.likes,
         RepliesCount: 0,
         ReplyTo: c.id || '',
+        Link: r.url || c.url || sourceUrl || '',
       });
     }
   }
@@ -53,7 +55,7 @@ export function flattenComments(comments) {
 
 const HEADERS = [
   'Level', 'CommentID', 'Author', 'CommentText',
-  'Timestamp', 'Date', 'Likes', 'RepliesCount', 'ReplyTo',
+  'Timestamp', 'Date', 'Likes', 'RepliesCount', 'ReplyTo', 'Link',
 ];
 export { HEADERS };
 

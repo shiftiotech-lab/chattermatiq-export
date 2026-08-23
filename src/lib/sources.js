@@ -33,18 +33,18 @@ export function detectPlatform(url) {
  * Fetch a preview (small sample).
  * @returns normalized source object
  */
-export async function fetchPreview(url, env) {
+export async function fetchPreview(url, env, limit = 15) {
   const platform = detectPlatform(url);
   if (platform === 'linkedin') {
     throw new Error('Platform not yet supported: LinkedIn is coming soon. Paste a YouTube, Instagram, Facebook, X, or Reddit link for now.');
   }
   switch (platform) {
-    case 'youtube': return youtubePreview(url, env);
-    case 'instagram': return apifyPreview(url, env, 'instagram');
-    case 'facebook': return apifyPreview(url, env, 'facebook');
-    case 'x': return apifyPreview(url, env, 'x');
-    case 'linkedin': return apifyPreview(url, env, 'linkedin');
-    case 'reddit': return apifyPreview(url, env, 'reddit');
+    case 'youtube': return youtubePreview(url, env, limit);
+    case 'instagram': return apifyPreview(url, env, 'instagram', limit);
+    case 'facebook': return apifyPreview(url, env, 'facebook', limit);
+    case 'x': return apifyPreview(url, env, 'x', limit);
+    case 'linkedin': return apifyPreview(url, env, 'linkedin', limit);
+    case 'reddit': return apifyPreview(url, env, 'reddit', limit);
     default:
       throw new Error(
         `Platform not recognized: ${platform || 'this URL'}. ` +
@@ -78,14 +78,15 @@ export async function fetchAll(url, env, maxResults = 1000) {
 
 // ---------- YouTube (free, official Data API) ----------
 
-async function youtubePreview(url, env) {
+async function youtubePreview(url, env, limit = 15) {
   const videoId = extractVideoId(url);
   if (!videoId) throw new Error('Please provide a valid YouTube URL.');
+  const maxR = Math.min(Math.max(Number(limit) || 15, 1), 50);
   const [meta, { comments }] = await Promise.all([
     fetchVideoMeta({ videoId, apiKey: env.YOUTUBE_API_KEY }),
-    fetchComments({ videoId, apiKey: env.YOUTUBE_API_KEY, maxResults: 15 }),
+    fetchComments({ videoId, apiKey: env.YOUTUBE_API_KEY, maxResults: maxR }),
   ]);
-  return norm('youtube', { title: meta.title, channel: meta.channel, url: meta.url }, comments.slice(0, 15));
+  return norm('youtube', { title: meta.title, channel: meta.channel, url: meta.url }, comments.slice(0, maxR));
 }
 
 async function youtubeAll(url, env, maxResults) {
@@ -162,9 +163,10 @@ async function runApify(platform, url, env, maxResults) {
   return { comments, title, channel, url };
 }
 
-async function apifyPreview(url, env, platform) {
-  const { comments, title, channel, url: srcUrl } = await runApify(platform, url, env, 20);
-  return norm(platform, { title, channel, url: srcUrl }, comments.slice(0, 20));
+async function apifyPreview(url, env, platform, limit = 20) {
+  const maxR = Math.min(Math.max(Number(limit) || 20, 1), 50);
+  const { comments, title, channel, url: srcUrl } = await runApify(platform, url, env, maxR);
+  return norm(platform, { title, channel, url: srcUrl }, comments.slice(0, maxR));
 }
 
 async function apifyAll(url, env, platform, maxResults) {

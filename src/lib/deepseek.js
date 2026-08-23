@@ -108,7 +108,7 @@ export async function analyzeWithDeepSeek({
       objections: asStrArray(parsed.objections),
       topRequests: asStrArray(parsed.top_requests),
       recommendations: asStrArray(parsed.recommendations),
-      sampleSize: text.length,
+      sampleSize: comments.length, // exact count analyzed (matches fetched count)
     };
   } catch (err) {
     console.error('[deepseek] analyze error:', err.message);

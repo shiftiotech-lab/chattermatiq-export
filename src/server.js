@@ -74,7 +74,7 @@ app.post('/api/preview', async (req, reply) => {
   const { url } = req.body || {};
   const { uid, ip } = identity(req);
   try {
-    const result = await fetchPreview(url, process.env);
+    const result = await fetchPreview(url, process.env, FREE_COMMENTS);
     const comments = (result.comments || []).slice(0, FREE_COMMENTS);
     result.comments = comments;
     logUsage({ action: 'preview', platform: result.platform, url, comments: comments.length, status: 200, uid, ip });
@@ -84,7 +84,7 @@ app.post('/api/preview', async (req, reply) => {
           apiKey: DEEPSEEK_KEY,
           model: DEEPSEEK_MODEL,
           videoTitle: result.source.title,
-          maxComments: 15,
+          maxComments: comments.length, // analyze exactly what was fetched
         })
       : null;
     logUsage({ action: 'analysis', platform: result.platform, url, status: 200, uid, ip, ai: ai ? 'ok' : 'off' });
@@ -111,7 +111,8 @@ app.post('/api/export', async (req, reply) => {
   const cap = isPaid(req) ? Number(maxResults) : Math.min(Number(maxResults), FREE_COMMENTS);
   try {
     const result = await fetchAll(url, process.env, cap);
-    const rows = flattenComments(result.comments);
+    const srcUrl = result.source?.url || url;
+    const rows = flattenComments(result.comments, srcUrl);
     const csv = toCsv(rows);
     logUsage({ action: 'export', platform: result.platform, url, comments: result.comments?.length || 0, status: 200, uid, ip });
     const safeTitle = (result.source.title || url).replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60);
