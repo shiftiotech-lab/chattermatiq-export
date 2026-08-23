@@ -186,7 +186,7 @@
               <textarea id="url" rows="3" placeholder="Paste one or more links, one per line. Each link is analyzed separately.&#10;&#10;https://youtube.com/watch?v=…&#10;https://www.instagram.com/p/…&#10;https://x.com/…/status/…" autocomplete="off"></textarea>
               <button type="submit" class="primary" id="go">Analyze ↓</button>
             </div>
-            <div class="hint" id="hint-line">Free preview + <b>up to 50 comments</b> in your CSV. Unlock the full thread with a paid plan.</div>
+            <div class="hint" id="hint-line">Free preview + <b>up to 50 comments</b> per link, <span id="quota-line">loading your weekly quota…</span></div>
             <div class="chips" style="margin-top:14px;justify-content:center;flex-wrap:wrap">
               <span class="chip">YouTube</span><span class="chip">Instagram</span><span class="chip">Facebook</span><span class="chip">X</span><span class="chip">Reddit</span>
               <span class="chip" style="opacity:.55;cursor:not-allowed">LinkedIn · coming soon</span>
@@ -338,6 +338,20 @@
     const jsonHeaders = () => ({ 'Content-Type':'application/json', 'x-client-id': CID });
 
     const MAX_LINKS = 15;
+
+    // Load and display the user's current weekly free quota.
+    async function loadQuota(){
+      try{
+        const res = await fetch('/api/quota', { headers: jsonHeaders() });
+        if(!res.ok) return;
+        const q = await res.json();
+        if(q.paid){ $('quota-line').textContent = 'unlimited · paid'; return; }
+        const cl = q.commentsLimit, cu = q.commentsUsed;
+        const al = q.analysesLimit, au = q.analysesUsed;
+        $('quota-line').textContent = `~${Math.max(0,cl-cu).toLocaleString()} comments left this week · ${Math.max(0,al-au)} AI analyses left`;
+      }catch(e){ $('quota-line').textContent = 'see pricing below'; }
+    }
+    loadQuota();
     function parseLinks(raw){
       return [...new Set(String(raw||'').split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^https?:\/\//i.test(s)))].slice(0, MAX_LINKS);
     }
@@ -435,6 +449,7 @@
           // note: LinkedIn is intentionally sent to the API so intent is logged for later billing
           const res = await fetch('/api/preview',{method:'POST',headers:jsonHeaders(),body:JSON.stringify({url})});
           const data = await res.json();
+          if(data && data.code === 'QUOTA'){ loadQuota(); }
           html = res.ok ? cardHtmlFor(url,data) : cardHtmlFor(url,null,data.error||'Failed to analyze');
         }catch(err){ html = cardHtmlFor(url,null,err.message); }
         cards.push(html);

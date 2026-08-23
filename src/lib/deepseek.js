@@ -109,6 +109,8 @@ export async function analyzeWithDeepSeek({
       topRequests: asStrArray(parsed.top_requests),
       recommendations: asStrArray(parsed.recommendations),
       sampleSize: comments.length, // exact count analyzed (matches fetched count)
+      costUsd: Number(data?.usage?.cost) || 0,
+      tokens: (data?.usage?.total_tokens) || 0,
     };
   } catch (err) {
     console.error('[deepseek] analyze error:', err.message);

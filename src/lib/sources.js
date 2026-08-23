@@ -133,7 +133,7 @@ async function runApify(platform, url, env, maxResults) {
   const actorId = cfg.actor;
   const input = cfg.input(url, maxResults);
 
-  const items = await runActor({ actorId, input, token });
+  const { items, costUsd } = await runActor({ actorId, input, token });
 
   // Normalize Apify item rows into the shared shape (fields vary by actor).
   const comments = items
@@ -160,19 +160,19 @@ async function runApify(platform, url, env, maxResults) {
     : null;
   const channel = first.subreddit ? `r/${first.subreddit}` : (first.postOwnerUsername ? `@${first.postOwnerUsername}` : null);
 
-  return { comments, title, channel, url };
+  return { comments, title, channel, url, costUsd };
 }
 
 async function apifyPreview(url, env, platform, limit = 20) {
   const maxR = Math.min(Math.max(Number(limit) || 20, 1), 50);
-  const { comments, title, channel, url: srcUrl } = await runApify(platform, url, env, maxR);
-  return norm(platform, { title, channel, url: srcUrl }, comments.slice(0, maxR));
+  const { comments, title, channel, url: srcUrl, costUsd } = await runApify(platform, url, env, maxR);
+  return { ...norm(platform, { title, channel, url: srcUrl }, comments.slice(0, maxR)), costUsd };
 }
 
 async function apifyAll(url, env, platform, maxResults) {
   const limit = Math.min(Math.max(Number(maxResults) || 1000, 1), 10000);
-  const { comments, title, channel, url: srcUrl } = await runApify(platform, url, env, limit);
-  return norm(platform, { title, channel, url: srcUrl }, comments);
+  const { comments, title, channel, url: srcUrl, costUsd } = await runApify(platform, url, env, limit);
+  return { ...norm(platform, { title, channel, url: srcUrl }, comments), costUsd };
 }
 
 // ---------- shared normalizer ----------

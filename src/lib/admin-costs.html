@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChattermatIQ · Admin Costs</title>
+<style>
+  :root{--bg:#020617;--panel:#0f172a;--border:#1e293b;--electric:#60a5fa;--electric-300:#93c5fd;--text:#f1f5f9;--muted:#94a3b8;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Space Grotesk",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.55;padding:24px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:24px;font-weight:700;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+  .nav{margin-bottom:18px}
+  .nav a{color:var(--electric);text-decoration:none;margin-right:16px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+  input,select,button{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit}
+  input:focus,select:focus{border-color:var(--electric);outline:none}
+  button{cursor:pointer}
+  button:hover{border-color:var(--electric);color:var(--electric-300)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .card .n{font-size:26px;font-weight:700;color:var(--electric-300)}
+  .card .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:20px}
+  .panel h3{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:600}
+  .usd{color:var(--electric-300);font-weight:600}
+  .err{background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);color:#fca5a5;border-radius:10px;padding:12px 14px;margin-bottom:16px}
+  .muted{color:var(--muted)}
+  .hidden{display:none!important}
+  .row{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+</style></head>
+<body><div class="wrap">
+  <h1>⚡ ChattermatIQ · Admin · Costs</h1>
+  <div class="sub">Live Apify + DeepSeek spend per session (USD). Costs are captured per request from the platform responses.</div>
+  <div class="nav"><a href="/admin">← Usage & links</a><a href="/admin/costs">Costs</a><a href="/logout" id="lg">Log out</a></div>
+
+  <div class="bar">
+    <input id="tok" type="password" placeholder="Admin token" style="min-width:180px">
+    <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select>
+    <button id="load">Load costs</button>
+  </div>
+  <div id="err" class="err hidden"></div>
+
+  <div class="cards" id="cards"></div>
+  <div class="panel"><h3>Spend per session</h3><table id="t"></table></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+function tok(){ return $('tok').value.trim(); }
+function load(){
+  const t=tok(); if(!t){ show('Enter the admin token.'); return; }
+  localStorage.setItem('cmq_admin_tok', t);
+  $('err').classList.add('hidden');
+  const q=new URLSearchParams({days:$('days').value,limit:1000}).toString();
+  fetch('/api/admin/costs?'+q,{headers:{'x-admin-token':t}}).then(r=>{
+    if(!r.ok){ return r.json().then(d=>{ throw new Error((d&&d.error)||('HTTP '+r.status)); }); }
+    return r.json();
+  }).then(render).catch(e=>show('Auth failed: '+e.message));
+}
+function show(m){ $('err').textContent=m; $('err').classList.remove('hidden'); }
+function render(d){
+  const s=d.summary||{};
+  $('cards').innerHTML=[
+    ['Apify spend (USD)', '$'+s.apifyUsd],
+    ['DeepSeek spend (USD)', '$'+s.aiUsd],
+    ['Total spend (USD)', '$'+s.totalUsd]
+  ].map(([l,n])=>`<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+  const rows=d.rows||[];
+  $('t').innerHTML='<tr><th>Session / user</th><th>Apify $</th><th>DeepSeek $</th><th>Total $</th><th>Requests</th><th>AI analyses</th></tr>'+
+    rows.map(r=>`<tr><td class="row">${esc(r.user)}</td><td class="usd">$${r.apifyUsd}</td><td class="usd">$${r.aiUsd}</td><td class="usd">$${r.totalUsd}</td><td>${r.requests}</td><td>${r.analyses}</td></tr>`).join('')||
+    '<tr><td class="muted" colspan="6">No cost data in this window yet (costs are captured from requests going forward).</td></tr>';
+}
+$('load').addEventListener('click', load);
+$('tok').addEventListener('keydown', e=>{ if(e.key==='Enter') load(); });
+$('lg').addEventListener('click', ()=>{ try{ localStorage.removeItem('cmq_admin_tok'); }catch(e){} });
+(function(){ try{ if(localStorage.getItem('cmq_admin_tok')){ $('tok').value=localStorage.getItem('cmq_admin_tok'); load(); } }catch(e){} })();
+</script></body></html>

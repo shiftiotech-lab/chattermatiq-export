@@ -55,9 +55,10 @@ export async function runActor({ actorId, input, token, timeoutMs = 180000 }) {
   const start = Date.now();
 
   // Poll until SUCCEEDED / FAILED / TIMED-OUT.
+  let runMeta = null;
   for (;;) {
     const st = await pollRunStatus(runId, token);
-    if (st.status === 'SUCCEEDED') break;
+    if (st.status === 'SUCCEEDED') { runMeta = st; break; }
     if (['FAILED', 'TIMED-OUT', 'ABORTED'].includes(st.status)) {
       throw new Error(`Apify actor ${actorId} ${st.status}: ${st.stats?.errorMessage || ''}`.trim());
     }
@@ -77,5 +78,6 @@ export async function runActor({ actorId, input, token, timeoutMs = 180000 }) {
     offset += batch.length;
     if (batch.length < 500) break;
   }
-  return items;
+
+  return { items, costUsd: Number(runMeta?.usageTotalUsd) || 0 };
 }

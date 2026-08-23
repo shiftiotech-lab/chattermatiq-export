@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { fetchPreview, fetchAll, detectPlatform } from './lib/sources.js';
 import { flattenComments, toCsv, HEADERS } from './lib/csv.js';
 import { analyzeWithDeepSeek } from './lib/deepseek.js';
-import { logUsage } from './lib/usage.js';
+import { logUsage, weeklyUsage } from './lib/usage.js';
 import { registerAdmin } from './lib/admin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,8 +28,13 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek/deepseek-chat';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+const ADMIN_USER = process.env.ADMIN_USER || '';
+const ADMIN_PASS = process.env.ADMIN_PASS || '';
 // Free-tier export cap: unauthenticated exports return at most this many comments.
 const FREE_COMMENTS = Math.max(1, Number(process.env.FREE_COMMENTS) || 50);
+// Per-user weekly quota (free tier). Paid/tiered users bypass via isPaid().
+const WEEK_COMMENTS = Math.max(0, Number(process.env.WEEK_COMMENTS) || 100);
+const WEEK_ANALYSES = Math.max(0, Number(process.env.WEEK_ANALYSES) || 20);
 
 // User identity for usage tracking: prefer a persistent client id sent by the
 // frontend (localStorage), fall back to the real client IP (via nginx proxy).
@@ -46,6 +51,37 @@ function identity(req) {
 function isPaid(req) {
   return false;
 }
+
+// Enforce the free per-user weekly quota. Returns an error message if over quota,
+// or null if the request may proceed.
+function quotaError(req, forComments, forAnalysis) {
+  if (isPaid(req)) return null;
+  const { uid, ip } = identity(req);
+  const w = weeklyUsage({ uid, ip });
+  const roomComments = Math.max(0, WEEK_COMMENTS - w.comments);
+  const roomAnalyses = Math.max(0, WEEK_ANALYSES - w.analyses);
+  if (forComments > roomComments) {
+    return `You've used your free quota (${w.comments}/${WEEK_COMMENTS} comments this week). Upgrade to keep exporting full threads.`;
+  }
+  if (forAnalysis && roomAnalyses < 1) {
+    return `You've used your free AI analyses (${w.analyses}/${WEEK_ANALYSES}) this week. Upgrade to keep AI insights.`;
+  }
+  return null;
+}
+
+// GET /api/quota — report a user's current free-tier weekly allowance.
+app.get('/api/quota', async (req) => {
+  const { uid, ip } = identity(req);
+  const w = weeklyUsage({ uid, ip });
+  const paid = isPaid(req);
+  return {
+    paid,
+    commentsUsed: w.comments,
+    commentsLimit: paid ? null : WEEK_COMMENTS,
+    analysesUsed: w.analyses,
+    analysesLimit: paid ? null : WEEK_ANALYSES,
+  };
+});
 
 // --- Static frontend (built Vite app, if present) ---
 const DIST = join(__dirname, '..', 'dist');
@@ -73,11 +109,17 @@ app.get('/api/health', async () => ({
 app.post('/api/preview', async (req, reply) => {
   const { url } = req.body || {};
   const { uid, ip } = identity(req);
+  // Free weekly quota (comments + AI analyses).
+  const blocked = quotaError(req, FREE_COMMENTS, true);
+  if (blocked) {
+    logUsage({ action: 'preview', platform: detectPlatform(url), url, status: 429, uid, ip, error: blocked.slice(0, 120) });
+    return reply.code(429).send({ error: blocked, code: 'QUOTA' });
+  }
   try {
     const result = await fetchPreview(url, process.env, FREE_COMMENTS);
     const comments = (result.comments || []).slice(0, FREE_COMMENTS);
     result.comments = comments;
-    logUsage({ action: 'preview', platform: result.platform, url, comments: comments.length, status: 200, uid, ip });
+    logUsage({ action: 'preview', platform: result.platform, url, comments: comments.length, status: 200, uid, ip, apifyCostUsd: result.costUsd || 0 });
     const ai = DEEPSEEK_KEY
       ? await analyzeWithDeepSeek({
           comments: result.comments,
@@ -87,7 +129,7 @@ app.post('/api/preview', async (req, reply) => {
           maxComments: comments.length, // analyze exactly what was fetched
         })
       : null;
-    logUsage({ action: 'analysis', platform: result.platform, url, status: 200, uid, ip, ai: ai ? 'ok' : 'off' });
+    logUsage({ action: 'analysis', platform: result.platform, url, status: 200, uid, ip, ai: ai ? 'ok' : 'off', aiCostUsd: ai?.costUsd || 0, aiTokens: ai?.tokens || 0 });
     return {
       platform: result.platform,
       video: result.source,
@@ -109,12 +151,18 @@ app.post('/api/export', async (req, reply) => {
   const { uid, ip } = identity(req);
   // Paid tier: a valid entitlements key unlocks the full requested amount.
   const cap = isPaid(req) ? Number(maxResults) : Math.min(Number(maxResults), FREE_COMMENTS);
+  // Free weekly quota: block if this would exceed the user's weekly comment budget.
+  const blocked = quotaError(req, cap, false);
+  if (blocked) {
+    logUsage({ action: 'export', platform: detectPlatform(url), url, status: 429, uid, ip, error: blocked.slice(0, 120) });
+    return reply.code(429).send({ error: blocked, code: 'QUOTA' });
+  }
   try {
     const result = await fetchAll(url, process.env, cap);
     const srcUrl = result.source?.url || url;
     const rows = flattenComments(result.comments, srcUrl);
     const csv = toCsv(rows);
-    logUsage({ action: 'export', platform: result.platform, url, comments: result.comments?.length || 0, status: 200, uid, ip });
+    logUsage({ action: 'export', platform: result.platform, url, comments: result.comments?.length || 0, status: 200, uid, ip, apifyCostUsd: result.costUsd || 0 });
     const safeTitle = (result.source.title || url).replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60);
     reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -130,7 +178,7 @@ app.post('/api/export', async (req, reply) => {
 
 const BOM = '\uFEFF'; // UTF-8 BOM so Excel opens UTF-8 CSV correctly
 
-registerAdmin(app, { token: ADMIN_TOKEN });
+registerAdmin(app, { token: ADMIN_TOKEN, username: ADMIN_USER, password: ADMIN_PASS });
 
 app.listen({ port: PORT, host: HOST }, (err) => {
   if (err) {
