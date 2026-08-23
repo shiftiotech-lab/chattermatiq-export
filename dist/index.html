@@ -65,6 +65,18 @@
     }
     input[type=text]:focus { border-color: var(--electric); }
     input[type=text]::placeholder { color:#64748b; }
+    textarea#url {
+      flex:1; min-width:240px; background:rgba(2,6,23,.5); border:1px solid var(--border);
+      border-radius:12px; padding:12px 16px; font-size:15px; color:var(--text); outline:none;
+      font-family:inherit; transition:border .2s; resize:vertical; line-height:1.5;
+    }
+    textarea#url:focus { border-color: var(--electric); }
+    textarea#url::placeholder { color:#64748b; }
+    .input-row > button { align-self:flex-end; }
+    .result-card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; margin-bottom:24px; }
+    .result-card.err-card { border-color:rgba(220,38,38,.4); }
+    .result-card .card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+    .result-card .card-head .title { font-size:16px; font-weight:700; }
     button.primary {
       background: var(--electric); color:#020617; font-weight:600; border:none; border-radius:12px;
       padding:14px 26px; font-size:15px; cursor:pointer; font-family:inherit;
@@ -147,15 +159,19 @@
       <div class="wrap">
         <p class="kicker">Comment Intelligence for Social Platforms</p>
         <h1>Extract the comments.<br/><span class="accent">Understand the audience.</span></h1>
-        <p class="sub">Paste a YouTube or Lemmy link below. We pull the real comments and surface the sentiment, themes, and objections — without reading a single one manually.</p>
+        <p class="sub">Paste a link from YouTube, Instagram, Facebook, X, or Reddit below. We pull the real comments and surface the sentiment, themes, and objections without reading a single one manually. <span style="color:var(--electric)">LinkedIn is coming soon.</span></p>
 
         <div class="card" style="text-align:left">
           <form id="form">
             <div class="input-row">
-              <input type="text" id="url" placeholder="Paste a YouTube or Lemmy link… e.g. https://youtube.com/watch?v=…" autocomplete="off" />
+              <textarea id="url" rows="3" placeholder="Paste one or more links, one per line. Each link is analyzed separately.&#10;&#10;https://youtube.com/watch?v=…&#10;https://www.instagram.com/p/…&#10;https://x.com/…/status/…" autocomplete="off"></textarea>
               <button type="submit" class="primary" id="go">Analyze ↓</button>
             </div>
             <div class="hint" id="hint-line">Free preview, no signup needed. Fetch the full set as CSV/Excel when you're ready.</div>
+            <div class="chips" style="margin-top:14px;justify-content:center;flex-wrap:wrap">
+              <span class="chip">YouTube</span><span class="chip">Instagram</span><span class="chip">Facebook</span><span class="chip">X</span><span class="chip">Reddit</span>
+              <span class="chip" style="opacity:.55;cursor:not-allowed">LinkedIn · coming soon</span>
+            </div>
           </form>
 
           <div id="progress" class="progress-shell hidden">
@@ -172,10 +188,7 @@
     <!-- RESULTS -->
     <section id="results" class="sect hidden">
       <div class="wrap">
-        <div class="meta-bar" id="metabar"></div>
-        <div id="insights"></div>
-        <button class="primary" id="exportBtn" style="margin-bottom:24px">⬇ Download all comments (CSV / Excel)</button>
-        <div class="rows" id="rows"></div>
+        <div id="resultsWrap"></div>
       </div>
     </section>
 
@@ -185,7 +198,7 @@
         <h2>How it works</h2>
         <p class="lead">From raw comments to real insight in three steps.</p>
         <div class="steps">
-          <div class="step"><div class="n">01</div><h4>Paste a link</h4><p>Any public YouTube or Lemmy post. We detect the platform and resolve it instantly.</p></div>
+          <div class="step"><div class="n">01</div><h4>Paste a link</h4><p>Any public YouTube, Instagram, Facebook, X, or Reddit post. We detect the platform and resolve it instantly. LinkedIn lands soon.</p></div>
           <div class="step"><div class="n">02</div><h4>AI analysis</h4><p>We fetch the real comments, then classify sentiment and cluster the recurring themes and objections.</p></div>
           <div class="step"><div class="n">03</div><h4>Export</h4><p>Get a clean CSV/Excel file with author, text, timestamp, likes, and replies — ready for your spreadsheet.</p></div>
         </div>
@@ -193,7 +206,7 @@
     </section>
   </main>
 
-  <footer>© <span id="year"></span> ChattermatIQ · Made with ⚡ by Manjyot Rait</footer>
+  <footer>© <span id="year"></span> ChattermatIQ · Made with ⚡ for content teams</footer>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -226,58 +239,23 @@
     }
 
     let currentMeta = null;
-
-    $('form').addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const url = $('url').value.trim();
-      if(!url) return;
-      hideErr();
-      $('ok').classList.add('hidden');
-      $('rows').innerHTML=''; $('insights').innerHTML=''; $('metabar').innerHTML='';
-      $('results').classList.add('hidden');
-      $('progress').classList.remove('hidden');
-      setProgress(8,'Connecting to YouTube…');
-      try {
-        const res = await fetch('/api/preview', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}) });
-        setProgress(55,'Fetching real comments…');
-        const data = await res.json();
-        if(!res.ok){ throw new Error(data.error||'Failed to analyze'); }
-        setProgress(90,'Running DeepSeek AI analysis…');
-        await new Promise(r=>setTimeout(r, 500)); // brief, honest settle
-        setProgress(100,'Done.');
-        render(data);
-      } catch(err){ showErr(err.message); $('progress').classList.add('hidden'); }
-    });
-
-    $('exportBtn').addEventListener('click', async () => {
-      const url = $('url').value.trim();
-      if(!url){ return; }
-      $('exportBtn').disabled=true; $('exportBtn').textContent='Preparing export…';
+    function clientId(){
       try{
-        const res = await fetch('/api/export', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, maxResults:1000}) });
-        if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error||'Export failed'); }
-        const blob = await res.blob();
-        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='comments.csv'; a.click();
-        setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-      }catch(err){ showErr(err.message); }
-      $('exportBtn').disabled=false; $('exportBtn').textContent='⬇ Download all comments (CSV / Excel)';
-    });
+        let n = localStorage.getItem('cmq_cid');
+        if(!n){ n = 'u_' + Math.random().toString(36).slice(2,10); localStorage.setItem('cmq_cid', n); }
+        return n;
+      }catch(e){ return 'anon'; }
+    }
+    const CID = clientId();
+    const jsonHeaders = () => ({ 'Content-Type':'application/json', 'x-client-id': CID });
 
-    function render(data){
-      const meta = data.video || {}; currentMeta = meta;
-      const comments = data.comments || [];
-      $('metabar').innerHTML =
-        `<span class="title">${esc(meta.title||'Video')}</span>`+
-        (meta.channel?`<span>Channel: <b>${esc(meta.channel)}</b></span>`:'')+
-        `<span>${comments.length} comments shown · <a href="${esc(meta.url)}" target="_blank" style="color:var(--electric)">open on YouTube ↗</a></span>`;
+    const MAX_LINKS = 15;
+    function parseLinks(raw){
+      return [...new Set(String(raw||'').split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^https?:\/\//i.test(s)))].slice(0, MAX_LINKS);
+    }
 
-      const s = computeInsights(comments);
-      // Prefer real DeepSeek analysis when present, else keyword sentiment.
-      const ai = data.ai;
-      let insightHtml;
-      if (ai && ai.sentiment) {
-        insightHtml = `
-        <div class="insight">
+    function aiInsightHtml(ai){
+      return `<div class="insight">
           <h3>🧠 AI audience analysis <span style="font-weight:400;font-size:12px;color:#64748b">· ${ai.sampleSize||''} comments</span></h3>
           <div class="chips" style="margin-bottom:14px">
             <span class="chip">👍 Positive ${ai.sentiment.positive}%</span>
@@ -289,9 +267,9 @@
           ${ai.topRequests?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">What viewers want:</b></p><ul>${ai.topRequests.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
           ${ai.recommendations?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Recommended next steps:</b></p><ul>${ai.recommendations.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
         </div>`;
-      } else {
-        insightHtml = `
-        <div class="insight">
+    }
+    function localInsightHtml(s){
+      return `<div class="insight">
           <h3>🧠 Sentiment on this video</h3>
           <div class="chips" style="margin-bottom:14px">
             <span class="chip">👍 Positive ${s.posPct}%</span>
@@ -300,25 +278,75 @@
           </div>
           <ul><li>Sampled <b>${s.count}</b> comment(s) — export the full set for a complete read.</li></ul>
         </div>`;
-      }
-      $('insights').innerHTML = insightHtml;
+    }
+    function commentRow(c, isReply){
+      return `<div class="row" ${isReply?'style="margin-left:44px"':''}><div class="avatar">${esc(avatarInit(c.author))}</div><div>
+        <div class="who">${esc(c.author)} <span class="when">${esc(fmtDate(c.timestamp))}</span></div>
+        <div class="txt">${esc(c.text)}</div>
+        ${isReply?'':`<div class="like">👍 ${c.likes||0}</div>`}</div></div>`;
+    }
+    function cardHtmlFor(url, data, error){
+      if(error){ return `<div class="result-card err-card"><div class="card-head"><b>${esc(url)}</b></div><div class="err">${esc(error)}</div></div>`; }
+      const meta = data.video||{};
+      const comments = data.comments||[];
+      const s = computeInsights(comments);
+      const ai = (data.ai && data.ai.sentiment) ? aiInsightHtml(data.ai) : localInsightHtml(s);
+      let rows=''; for(const c of comments){ rows += commentRow(c,false); for(const r of (c.replies||[])) rows += commentRow(r,true); }
+      rows = rows || '<div style="color:var(--muted);padding:20px">No comments found on this link.</div>';
+      const src = meta.url||url;
+      return `<div class="result-card">
+        <div class="card-head">
+          <div><div class="title">${esc(meta.title||'Result')}</div>${meta.channel?`<div class="when">Channel: ${esc(meta.channel)}</div>`:''}</div>
+          <a href="${esc(src)}" target="_blank" rel="noopener" style="color:var(--electric);font-size:13px;word-break:break-all">${esc(url)} ↗</a>
+        </div>
+        ${ai}
+        <div class="meta-bar" style="margin:10px 0 4px"><strong>${comments.length}</strong> comments sampled · <button class="btn-secondary export-one" data-url="${esc(url)}" style="padding:8px 14px">⬇ Download CSV</button></div>
+        <div class="rows">${rows}</div>
+      </div>`;
+    }
+    function bindExports(){
+      document.querySelectorAll('.export-one').forEach((btn)=>{
+        btn.onclick = async ()=>{
+          const url = btn.getAttribute('data-url'); btn.disabled=true; btn.textContent='Preparing…';
+          try{
+            const res = await fetch('/api/export',{method:'POST',headers:jsonHeaders(),body:JSON.stringify({url,maxResults:1000})});
+            if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error||'Export failed'); }
+            const blob = await res.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='comments.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+          }catch(err){ showErr(err.message); }
+          btn.disabled=false; btn.textContent='⬇ Download CSV';
+        };
+      });
+    }
 
-      let rows='';
-      for(const c of comments){
-        rows += `<div class="row"><div class="avatar">${esc(avatarInit(c.author))}</div><div>
-          <div class="who">${esc(c.author)} <span class="when">${esc(fmtDate(c.timestamp))}</span></div>
-          <div class="txt">${esc(c.text)}</div>
-          <div class="like">👍 ${c.likes||0}</div></div></div>`;
-        for(const r of (c.replies||[])){
-          rows += `<div class="row" style="margin-left:44px"><div class="avatar">${esc(avatarInit(r.author))}</div><div>
-            <div class="who">${esc(r.author)} <span class="when">${esc(fmtTime(r.timestamp))}</span></div>
-            <div class="txt">${esc(r.text)}</div></div></div>`;
-        }
-      }
-      $('rows').innerHTML = rows || '<div style="color:var(--muted);padding:20px">No comments found on this video.</div>';
+    $('form').addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const urls = parseLinks($('url').value);
+      if(!urls.length){ showErr('Paste at least one link (one per line, or comma separated).'); return; }
+      hideErr(); $('ok').classList.add('hidden');
+      const wrap = $('resultsWrap'); wrap.innerHTML='';
       $('results').classList.remove('hidden');
       $('results').scrollIntoView({behavior:'smooth'});
-    }
+      $('progress').classList.remove('hidden');
+      const cards=[];
+      let i=0;
+      for(const url of urls){
+        i++;
+        setProgress(Math.round((i-1)/urls.length*100), `Analyzing link ${i} of ${urls.length}…`);
+        let html;
+        try{
+          // note: LinkedIn is intentionally sent to the API so intent is logged for later billing
+          const res = await fetch('/api/preview',{method:'POST',headers:jsonHeaders(),body:JSON.stringify({url})});
+          const data = await res.json();
+          html = res.ok ? cardHtmlFor(url,data) : cardHtmlFor(url,null,data.error||'Failed to analyze');
+        }catch(err){ html = cardHtmlFor(url,null,err.message); }
+        cards.push(html);
+        wrap.innerHTML = cards.join('');
+        bindExports();
+        setProgress(Math.round(i/urls.length*100), `Analyzed ${i} of ${urls.length}`);
+      }
+      setProgress(100,'Done.');
+      setTimeout(()=>$('progress').classList.add('hidden'),400);
+    });
     function fmtTime(iso){ return fmtDate(iso); }
   </script>
 </body>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChattermatIQ · Admin</title>
+<style>
+  :root{--bg:#020617;--panel:#0f172a;--border:#1e293b;--electric:#60a5fa;--electric-300:#93c5fd;--text:#f1f5f9;--muted:#94a3b8;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Space Grotesk",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.55;padding:24px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:24px;font-weight:700;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+  input,select,button{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit}
+  input:focus,select:focus{border-color:var(--electric);outline:none}
+  button{cursor:pointer}
+  button:hover{border-color:var(--electric);color:var(--electric-300)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .card .n{font-size:26px;font-weight:700;color:var(--electric-300)}
+  .card .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em}
+  .grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:22px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .panel h3{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  td.plat{font-weight:600;color:var(--electric-300)}
+  .pl{background:rgba(96,165,250,.12);color:var(--electric-300);border:1px solid rgba(96,165,250,.3);padding:2px 8px;border-radius:99px;font-size:11px}
+  .err{background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);color:#fca5a5;border-radius:10px;padding:12px 14px;margin-bottom:16px}
+  .ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.4);color:#86efac;border-radius:10px;padding:12px 14px}
+  .muted{color:var(--muted)}
+  .hidden{display:none!important}
+  a{color:var(--electric)}
+  .row{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+</style></head>
+<body><div class="wrap">
+  <h1>⚡ ChattermatIQ · Admin</h1>
+  <div class="sub">Usage tracking — who, which platform, which link. Every LinkedIn request is flagged so you can bill it separately later.</div>
+
+  <div class="bar">
+    <input id="tok" type="password" placeholder="Admin token" style="min-width:180px">
+    <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select>
+    <select id="platform"><option value="">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="x">X</option><option value="reddit">Reddit</option><option value="linkedin">LinkedIn</option><option value="error">Errors</option></select>
+    <button id="load">Load</button>
+  </div>
+
+  <div id="err" class="err hidden"></div>
+  <div id="ok" class="ok hidden"></div>
+
+  <div class="cards" id="cards"></div>
+  <div class="grid">
+    <div class="panel"><h3>By platform (requests)</h3><table id="platT"></table></div>
+    <div class="panel"><h3>By user (client id)</h3><table id="usrT"></table></div>
+  </div>
+  <div class="panel"><h3>Recent activity</h3><table id="actT"></table></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+$('load').addEventListener('click', load);
+$('tok').addEventListener('keydown', e=>{ if(e.key==='Enter') load(); });
+(function(){ try{ if(localStorage.getItem('cmq_admin_tok')){ $('tok').value=localStorage.getItem('cmq_admin_tok'); load(); } }catch(e){} })();
+
+async function load(){
+  const tok=$('tok').value.trim();
+  if(!tok){ $('err').textContent='Enter the admin token.'; $('err').classList.remove('hidden'); return; }
+  localStorage.setItem('cmq_admin_tok', tok);
+  $('err').classList.add('hidden');
+  const q = new URLSearchParams({ days:$('days').value, platform:$('platform').value, limit:500 }).toString();
+  const res = await fetch('/api/admin/usage?'+q, { headers:{ 'x-admin-token': tok } });
+  if(!res.ok){ const d=await res.json().catch(()=>({})); $('err').textContent='Auth failed: '+(d.error||res.status); $('err').classList.remove('hidden'); return; }
+  render(await res.json());
+}
+function render(data){
+  const s=data.summary||{};
+  const rows=data.rows||[];
+  const linkedins = rows.filter(r=>r.platform==='linkedin').length;
+  $('cards').innerHTML = [
+    ['Requests (window)', s.total||0],
+    ['Active days', (s.byDay?Object.keys(s.byDay).length:0)],
+    ['LinkedIn requests', linkedins],
+    ['Unique users', s.byUser?Object.keys(s.byUser).length:0]
+  ].map(([l,n])=>`<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const bp=Object.entries(s.byPlatform||{}).sort((a,b)=>b[1]-a[1]);
+  $('platT').innerHTML='<tr><th>Platform</th><th>Requests</th></tr>'+bp.map(([k,v])=>`<tr><td class="plat">${esc(k)}</td><td>${v}</td></tr>`).join('')||'<tr><td class="muted">none</td></tr>';
+
+  const bu=Object.entries(s.byUser||{}).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  $('usrT').innerHTML='<tr><th>User</th><th>Requests</th></tr>'+bu.map(([k,v])=>`<tr><td class="row">${esc(k)}</td><td>${v}</td></tr>`).join('');
+
+  $('actT').innerHTML='<tr><th>Time</th><th>User</th><th>Platform</th><th>Action</th><th>Comments</th><th>Status</th><th>Link</th></tr>'+
+    rows.map(r=>`<tr>
+      <td>${esc((r.ts||'').replace('T',' ').slice(0,19))}</td>
+      <td class="row">${esc(r.uid||r.ip||'anon')}</td>
+      <td>${r.platform?`<span class="pl">${esc(r.platform)}</span>`:'—'}</td>
+      <td>${esc(r.action||'')}</td>
+      <td>${r.comments!=null?r.comments:'—'}</td>
+      <td>${esc(r.status||'')}</td>
+      <td>${r.url?`<a class="row" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url).slice(0,60)}</a>`:'—'}</td>
+    </tr>`).join('')||'<tr><td class="muted">No activity in this window.</td></tr>';
+}
+</script></body></html>

@@ -35,6 +35,9 @@ export function detectPlatform(url) {
  */
 export async function fetchPreview(url, env) {
   const platform = detectPlatform(url);
+  if (platform === 'linkedin') {
+    throw new Error('Platform not yet supported: LinkedIn is coming soon. Paste a YouTube, Instagram, Facebook, X, or Reddit link for now.');
+  }
   switch (platform) {
     case 'youtube': return youtubePreview(url, env);
     case 'instagram': return apifyPreview(url, env, 'instagram');
@@ -55,6 +58,9 @@ export async function fetchPreview(url, env) {
  */
 export async function fetchAll(url, env, maxResults = 1000) {
   const platform = detectPlatform(url);
+  if (platform === 'linkedin') {
+    throw new Error('Platform not yet supported: LinkedIn is coming soon. Paste a YouTube, Instagram, Facebook, X, or Reddit link for now.');
+  }
   switch (platform) {
     case 'youtube': return youtubeAll(url, env, maxResults);
     case 'instagram': return apifyAll(url, env, 'instagram', maxResults);
@@ -96,10 +102,11 @@ async function youtubeAll(url, env, maxResults) {
 // ---------- Apify-powered platforms (Instagram, Facebook, X, LinkedIn, Reddit) ----------
 
 const APIFY_ACTORS = {
-  instagram: { actor: 'apify/instagram-comment-scraper', input: (url) => ({ directUrls: [url] }) },
-  facebook: { actor: 'apify/facebook-comments-scraper', input: (url) => ({ startUrls: [{ url }], includeNestedComments: true, viewOption: 'RANKED_UNFILTERED' }) },
-  x: { actor: 'apidojo/twitter-replies-scraper', input: (url) => ({ urls: [url] }) },
-  linkedin: { actor: 'apimaestro/linkedin-post-comments-replies-engagements-scraper-no-cookies', input: (url) => ({ postIds: [url] }) },
+  instagram: { actor: 'apify/instagram-comment-scraper', input: (url, max) => ({ directUrls: [url], maxComments: Math.min(max || 1000, 10000) }) },
+  facebook: { actor: 'apify/facebook-comments-scraper', input: (url, max) => ({ startUrls: [{ url }], includeNestedComments: true, viewOption: 'RANKED_UNFILTERED', maxNestedComments: Math.min(max || 1000, 10000) }) },
+  // apidojo/twitter-replies-scraper expects startUrls/tweetIds (NOT "urls"); wrong field => silent 0 results.
+  x: { actor: 'apidojo/twitter-replies-scraper', input: (url, max) => ({ startUrls: [url], maxItems: Math.min(max || 1000, 10000) }) },
+  linkedin: { actor: 'apimaestro/linkedin-post-comments-replies-engagements-scraper-no-cookies', input: (url, max) => ({ postIds: [url], maxItems: Math.min(max || 1000, 10000) }) },
   reddit: { actor: 'newbs/reddit-comment-scraper', input: (url) => ({ postUrls: [url] }) },
 };
 
@@ -123,7 +130,7 @@ async function runApify(platform, url, env, maxResults) {
   const token = requireApify(env);
   const cfg = APIFY_ACTORS[platform];
   const actorId = cfg.actor;
-  const input = cfg.input(url);
+  const input = cfg.input(url, maxResults);
 
   const items = await runActor({ actorId, input, token });
 
