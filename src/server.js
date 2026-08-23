@@ -28,6 +28,8 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek/deepseek-chat';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+// Free-tier export cap: unauthenticated exports return at most this many comments.
+const FREE_COMMENTS = Math.max(1, Number(process.env.FREE_COMMENTS) || 50);
 
 // User identity for usage tracking: prefer a persistent client id sent by the
 // frontend (localStorage), fall back to the real client IP (via nginx proxy).
@@ -36,6 +38,13 @@ function identity(req) {
   const fwd = (req.headers['x-forwarded-for'] || '').trim();
   const ip = (fwd.split(',')[0] || req.ip || '').trim();
   return { uid: cid || null, ip: ip || req.ip || null };
+}
+
+// A request is "paid" when it carries a valid paid entitlements token.
+// Without any payment integration wired yet, this always returns false, so
+// every user is on the FREE_COMMENTS cap. Flip on once Razorpay is integrated.
+function isPaid(req) {
+  return false;
 }
 
 // --- Static frontend (built Vite app, if present) ---
@@ -66,7 +75,9 @@ app.post('/api/preview', async (req, reply) => {
   const { uid, ip } = identity(req);
   try {
     const result = await fetchPreview(url, process.env);
-    logUsage({ action: 'preview', platform: result.platform, url, comments: result.comments?.length || 0, status: 200, uid, ip });
+    const comments = (result.comments || []).slice(0, FREE_COMMENTS);
+    result.comments = comments;
+    logUsage({ action: 'preview', platform: result.platform, url, comments: comments.length, status: 200, uid, ip });
     const ai = DEEPSEEK_KEY
       ? await analyzeWithDeepSeek({
           comments: result.comments,
@@ -92,12 +103,14 @@ app.post('/api/preview', async (req, reply) => {
   }
 });
 
-// Export all comments as CSV.
+// Export all comments as CSV (free tier capped at FREE_COMMENTS unless a paid key is supplied).
 app.post('/api/export', async (req, reply) => {
   const { url, maxResults = 1000 } = req.body || {};
   const { uid, ip } = identity(req);
+  // Paid tier: a valid entitlements key unlocks the full requested amount.
+  const cap = isPaid(req) ? Number(maxResults) : Math.min(Number(maxResults), FREE_COMMENTS);
   try {
-    const result = await fetchAll(url, process.env, maxResults);
+    const result = await fetchAll(url, process.env, cap);
     const rows = flattenComments(result.comments);
     const csv = toCsv(rows);
     logUsage({ action: 'export', platform: result.platform, url, comments: result.comments?.length || 0, status: 200, uid, ip });

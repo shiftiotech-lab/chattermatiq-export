@@ -129,6 +129,24 @@
 
     footer { border-top:1px solid var(--border); padding:24px 0; text-align:center; color:#64748b; font-size:13px; }
     .hidden { display:none !important; }
+
+    /* pricing */
+    .pricing { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; margin-top:40px; }
+    .plan { background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:26px; position:relative; }
+    .plan.popular { border-color:var(--electric); box-shadow:0 10px 30px rgba(96,165,250,.18); }
+    .plan .cup { font-size:22px; margin-bottom:6px; }
+    .plan h3 { font-size:18px; font-weight:700; margin-bottom:2px; }
+    .plan .cap { font-size:13px; color:var(--muted); margin-bottom:10px; }
+    .plan .price { font-size:26px; font-weight:700; color:var(--text); }
+    .plan .per { font-size:13px; color:var(--muted); }
+    .plan .save { display:inline-block; background:rgba(34,197,94,.12); color:#86efac; border:1px solid rgba(34,197,94,.4); padding:2px 10px; border-radius:99px; font-size:12px; margin-top:6px; }
+    .plan ul { padding-left:0; list-style:none; display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+    .plan li { color:var(--muted); font-size:13px; }
+    .plan li::before { content:"✓ "; color:var(--electric); }
+    .plan .buy { display:block; width:100%; text-align:center; background:var(--electric); color:#020617; font-weight:600; border:none; border-radius:12px; padding:13px 20px; font-size:14px; cursor:pointer; font-family:inherit; margin-top:18px; }
+    .plan .buy:hover { background: var(--electric-300); }
+    .plan .recur { text-align:center; font-size:12px; color:#64748b; margin-top:8px; }
+    .pricing-note { color:var(--muted); font-size:13px; margin-top:18px; }
     .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:40px; }
     .step { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; }
     .step .n { font-size:12px; color:var(--electric); font-weight:600; letter-spacing:.2em; }
@@ -148,6 +166,7 @@
       <div class="nav-links">
         <a href="#tool">Tool</a>
         <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
         <a href="mailto:hello@chattermatiq.com">Contact</a>
       </div>
     </nav>
@@ -167,7 +186,7 @@
               <textarea id="url" rows="3" placeholder="Paste one or more links, one per line. Each link is analyzed separately.&#10;&#10;https://youtube.com/watch?v=…&#10;https://www.instagram.com/p/…&#10;https://x.com/…/status/…" autocomplete="off"></textarea>
               <button type="submit" class="primary" id="go">Analyze ↓</button>
             </div>
-            <div class="hint" id="hint-line">Free preview, no signup needed. Fetch the full set as CSV/Excel when you're ready.</div>
+            <div class="hint" id="hint-line">Free preview + <b>up to 50 comments</b> in your CSV. Unlock the full thread with a paid plan.</div>
             <div class="chips" style="margin-top:14px;justify-content:center;flex-wrap:wrap">
               <span class="chip">YouTube</span><span class="chip">Instagram</span><span class="chip">Facebook</span><span class="chip">X</span><span class="chip">Reddit</span>
               <span class="chip" style="opacity:.55;cursor:not-allowed">LinkedIn · coming soon</span>
@@ -202,6 +221,73 @@
           <div class="step"><div class="n">02</div><h4>AI analysis</h4><p>We fetch the real comments, then classify sentiment and cluster the recurring themes and objections.</p></div>
           <div class="step"><div class="n">03</div><h4>Export</h4><p>Get a clean CSV/Excel file with author, text, timestamp, likes, and replies — ready for your spreadsheet.</p></div>
         </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="sect" id="pricing">
+      <div class="wrap">
+        <h2>Simple pricing</h2>
+        <p class="lead">Pay once for lifetime access, or subscribe monthly and save 10%.</p>
+        <div class="pricing">
+          <!-- Espresso -->
+          <div class="plan">
+            <div class="cup">☕</div>
+            <h3>Espresso</h3>
+            <div class="cap">500 comments</div>
+            <div class="price">₹499</div>
+            <div class="per">one-time · lifetime access</div>
+            <div class="save">or ₹449/mo subscription</div>
+            <ul>
+              <li>500 comments / link</li>
+              <li>All platforms</li>
+              <li>AI sentiment + themes</li>
+              <li>CSV / Excel export</li>
+            </ul>
+            <button class="buy" data-plan="espresso">Choose Espresso</button>
+            <div class="recur">₹449/mo · save 10%</div>
+          </div>
+
+          <!-- Cappuccino -->
+          <div class="plan popular">
+            <div class="cup">🥛</div>
+            <h3>Cappuccino</h3>
+            <div class="cap">2,000 comments</div>
+            <div class="price">₹1,499</div>
+            <div class="per">one-time · lifetime access</div>
+            <div class="save">or ₹1,349/mo subscription</div>
+            <ul>
+              <li>2,000 comments / link</li>
+              <li>All platforms</li>
+              <li>Priority AI analysis</li>
+              <li>CSV / Excel export</li>
+              <li>Unlimited links</li>
+            </ul>
+            <button class="buy" data-plan="cappuccino">Choose Cappuccino</button>
+            <div class="recur">₹1,349/mo · save 10%</div>
+          </div>
+
+          <!-- Latte -->
+          <div class="plan">
+            <div class="cup">🍵</div>
+            <h3>Latte</h3>
+            <div class="cap">5,000 comments</div>
+            <div class="price">₹2,999</div>
+            <div class="per">one-time · lifetime access</div>
+            <div class="save">or ₹2,699/mo subscription</div>
+            <ul>
+              <li>5,000 comments / link</li>
+              <li>All platforms</li>
+              <li>Highest priority AI</li>
+              <li>CSV / Excel export</li>
+              <li>Unlimited links</li>
+              <li>Early access to new features</li>
+            </ul>
+            <button class="buy" data-plan="latte">Choose Latte</button>
+            <div class="recur">₹2,699/mo · save 10%</div>
+          </div>
+        </div>
+        <p class="pricing-note">Free plan: preview the first 50 comments with full AI analysis — no signup.</p>
       </div>
     </section>
   </main>
@@ -317,6 +403,16 @@
         };
       });
     }
+
+    // Pricing buy buttons — payments (Razorpay) to be wired once final prices are greenlit.
+    document.querySelectorAll('.buy').forEach((btn)=>{
+      btn.addEventListener('click', ()=>{
+        hideErr();
+        const plan = btn.getAttribute('data-plan');
+        const names = { espresso:'Espresso', cappuccino:'Cappuccino', latte:'Latte' };
+        showErr(`🛒 ${names[plan]||plan} checkout is almost here — payments go live once we finalize pricing. Want early access? Email hello@chattermatiq.com.`);
+      });
+    });
 
     $('form').addEventListener('submit', async (ev)=>{
       ev.preventDefault();
