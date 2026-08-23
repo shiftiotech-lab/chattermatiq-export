@@ -308,6 +308,8 @@
     function hideErr(){ $('err').classList.add('hidden'); }
 
     function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+    // Capitalize the first letter only — preserves real acronyms/casing inside ("iOS", "API").
+    function cap(s){ const t = s==null?'':String(s).trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }
     function fmtDate(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleString(); }catch{ return iso; } }
 
     function avatarInit(name){ return (name||'?').trim().charAt(0).toUpperCase(); }
@@ -348,10 +350,10 @@
             <span class="chip">😐 Neutral ${ai.sentiment.neutral}%</span>
             <span class="chip">👎 Negative ${ai.sentiment.negative}%</span>
           </div>
-          ${ai.themes?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Themes:</b></p><div class="chips" style="margin-bottom:12px">${ai.themes.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`:''}
-          ${ai.objections?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Objections / concerns:</b></p><ul>${ai.objections.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
-          ${ai.topRequests?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">What viewers want:</b></p><ul>${ai.topRequests.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
-          ${ai.recommendations?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Recommended next steps:</b></p><ul>${ai.recommendations.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+          ${ai.themes?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Themes:</b></p><div class="chips" style="margin-bottom:12px">${ai.themes.map(t=>`<span class="chip">${esc(cap(t))}</span>`).join('')}</div>`:''}
+                    ${ai.objections?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Objections / concerns:</b></p><ul>${ai.objections.map(t=>`<li>${esc(cap(t))}</li>`).join('')}</ul>`:''}
+                    ${ai.topRequests?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">What viewers want:</b></p><ul>${ai.topRequests.map(t=>`<li>${esc(cap(t))}</li>`).join('')}</ul>`:''}
+                    ${ai.recommendations?.length?`<p style="font-size:13px;color:var(--muted);margin:10px 0 6px"><b style="color:var(--text)">Recommended next steps:</b></p><ul>${ai.recommendations.map(t=>`<li>${esc(cap(t))}</li>`).join('')}</ul>`:''}`
         </div>`;
     }
     function localInsightHtml(s){
