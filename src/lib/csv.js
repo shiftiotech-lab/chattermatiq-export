@@ -1,5 +1,16 @@
 /** CSV generation for comment exports. Plain RFC-4180-ish escaping, no deps. */
 
+// Convert a timestamp to India Standard Time (Asia/Kolkata, UTC+05:30).
+// Returns a clean, sortable local string, e.g. "2026-08-23 16:22:05 IST".
+function toIst(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  // Asia/Kolkata has a fixed +05:30 offset (no DST).
+  const ist = new Date(d.getTime() + 330 * 60000);
+  return ist.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '') + ' IST';
+}
+
 function esc(value) {
   const s = value == null ? '' : String(value);
   if (/[",\n\r]/.test(s)) {
@@ -18,7 +29,7 @@ export function flattenComments(comments) {
       Author: c.author,
       CommentText: c.text,
       Timestamp: c.timestamp || '',
-      Date: c.timestamp ? new Date(c.timestamp).toISOString() : '',
+      Date: toIst(c.timestamp),
       Likes: c.likes,
       RepliesCount: c.replies ? c.replies.length : 0,
       ReplyTo: '',
@@ -30,7 +41,7 @@ export function flattenComments(comments) {
         Author: r.author,
         CommentText: r.text,
         Timestamp: r.timestamp || '',
-        Date: r.timestamp ? new Date(r.timestamp).toISOString() : '',
+        Date: toIst(r.timestamp),
         Likes: r.likes,
         RepliesCount: 0,
         ReplyTo: c.id || '',
